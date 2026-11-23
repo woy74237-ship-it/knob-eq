@@ -4,9 +4,11 @@
 「曇りを取りたい」「重低音の振動を感じたい」のような目的から選べる、チューニングガイド付き。
 [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) の設定ファイルを書き換えることで動作します。
 
-A simple knob-style equalizer for Windows, powered by Equalizer APO.
+A simple knob-style equalizer for Windows, powered by Equalizer APO. → [English](#english)
 
 ![KnobEQ の画面](site/images/main.png)
+
+画面は Windows の表示言語に合わせて、日本語または英語で表示されます。
 
 ## ダウンロード
 
@@ -153,5 +155,52 @@ Windows に標準で入っている C# コンパイラを使うので、追加�
 - 実行ファイルには署名がないため、初回起動時に Windows SmartScreen の警告が出ることがあります。
 
 ## ライセンス
+
+[MIT License](LICENSE)
+
+---
+
+## English
+
+KnobEQ is a simple knob-style equalizer for Windows. Turn a knob and the sound of your whole PC changes right away.
+It works on top of [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) by writing its configuration file.
+The app follows your Windows display language (Japanese or English).
+
+![KnobEQ](site/images/en/main.png)
+
+### Features
+
+- **Just turn the knobs** — drag up/down or scroll; double-click to reset to 0 dB
+- **Tuning guide** — pick what you want ("Remove muddiness", "Feel the deep bass rumble", …) and KnobEQ highlights which knobs to turn and by how much, with the target curve on the graph
+- **3 or 6 knobs** — a simple tone control (Treble / Mid / Bass) or six bands (Sub to Treble); each mode remembers its own settings
+- **Response graph and automatic preamp** — see what your settings do, and avoid clipping (overlapping bands are taken into account)
+- **Tells you why it isn't working** — detects when "Audio enhancements" are off or Equalizer APO isn't installed for the current output device
+- **Vertical or horizontal layout**, light / dark mode and accent color that follow Windows
+- Works alongside Peace and other Equalizer APO front ends
+
+![Tuning guide](site/images/en/guide.png)
+
+### Requirements
+
+- Windows 10 / 11 (.NET Framework 4.x is built in)
+- [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) installed for your headphones or speakers (select them in the Configurator)
+
+### Getting started
+
+1. Install Equalizer APO and select your output devices in its Configurator.
+2. Download the ZIP from [Releases](https://github.com/woy74237-ship-it/knob-eq/releases/latest) and extract it.
+3. Run `KnobEQ.exe` and turn the knobs. Settings stay active after you close the app.
+
+If Windows shows "Windows protected your PC", click "More info" → "Run anyway" (the app isn't code-signed).
+
+### What it changes on your PC
+
+- Creates `knobeq.txt` in the Equalizer APO config folder and rewrites it as you turn the knobs.
+- Adds one line, `Include: knobeq.txt`, to `config.txt` (a backup is saved once as `config.txt.knobeq-backup`).
+- Other files such as `peace.txt` are left untouched.
+
+To uninstall, remove the `Include: knobeq.txt` line from `config.txt`, delete `knobeq.txt`, and delete the KnobEQ folder.
+
+### License
 
 [MIT License](LICENSE)

@@ -14,11 +14,30 @@ using Microsoft.Win32;
 // exe のプロパティに出る情報。配布用 ZIP の名前（package.ps1）も AssemblyInformationalVersion から決まる
 [assembly: AssemblyTitle("KnobEQ")]
 [assembly: AssemblyProduct("KnobEQ")]
-[assembly: AssemblyDescription("Equalizer APO 用のつまみ式イコライザ")]
+[assembly: AssemblyDescription("Knob-style equalizer for Equalizer APO")]
 [assembly: AssemblyCopyright("© 2026 Walt-Owen")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: AssemblyInformationalVersion("1.0.0")]
+
+// 画面の言語。Windows の表示言語が日本語なら日本語、それ以外は英語
+static class L
+{
+    public static bool Ja;
+
+    public static void Init()
+    {
+        Ja = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ja";
+#if UI_TEST
+        // 見た目確認用のビルドだけ、環境変数で言語を強制できる
+        string force = Environment.GetEnvironmentVariable("KNOBEQ_LANG");
+        if (force == "ja") Ja = true; else if (force == "en") Ja = false;
+#endif
+    }
+
+    // 日本語と英語の文言を並べて書き、今の言語の方を返す
+    public static string T(string ja, string en) { return Ja ? ja : en; }
+}
 
 // Windows のライト／ダークモードとアクセントカラーに合わせた配色
 static class Theme
@@ -151,6 +170,7 @@ static class AudioCheck
         string force = Environment.GetEnvironmentVariable("KNOBEQ_WARN");
         if (force == "off") { deviceName = "Headphones"; return Status.EnhancementsOff; }
         if (force == "noapo") { deviceName = "Speakers"; return Status.NoApo; }
+        if (force == "none") return Status.Ok;
 #endif
         string id = DefaultRenderId();
         if (id == null) return Status.Unknown;
@@ -292,64 +312,93 @@ static class Recipes
     static Adj A(string band, float lo, float hi) { return new Adj(band, lo, hi); }
     static Adj A(string band, float v) { return new Adj(band, v, v); }
 
-    public static readonly Recipe[] All = new Recipe[] {
+    static string T(string ja, string en) { return L.T(ja, en); }
+
+    // 言語（L.Ja）が決まってから作るよう、最初に使われたときに作る
+    static Recipe[] all;
+    public static Recipe[] All { get { return all ?? (all = Build()); } }
+
+    static Recipe[] Build()
+    {
+        return new Recipe[] {
         new Recipe {
-            Title = "曇りを取りたい",
-            Why = "こもって聞こえる原因の多くは 200〜500 Hz の出すぎです。ここを少し削ると、ベールが 1 枚はがれたように聞こえます。",
+            Title = T("曇りを取りたい", "Remove muddiness"),
+            Why = T("こもって聞こえる原因の多くは 200〜500 Hz の出すぎです。ここを少し削ると、ベールが 1 枚はがれたように聞こえます。",
+                    "Muddiness usually comes from too much energy around 200–500 Hz. Trimming it a little feels like lifting a veil off the sound."),
             Six = new[] { A("Low-Mid", -4, -2), A("High-Mid", 1) },
             Three = new[] { A("Bass", -1), A("Treble", 2) },
-            Tip6 = "まず Low-Mid だけを −2 から。削りすぎると今度は痩せた音になるので、こもりが消えたところで止めます。",
-            Tip3 = "Treble を少しずつ上げ、こもりが消えたところで止めます。Bass を下げすぎると痩せた音になります。" },
+            Tip6 = T("まず Low-Mid だけを −2 から。削りすぎると今度は痩せた音になるので、こもりが消えたところで止めます。",
+                     "Start by lowering only Low-Mid to −2. Cutting too much makes the sound thin, so stop as soon as the muddiness clears."),
+            Tip3 = T("Treble を少しずつ上げ、こもりが消えたところで止めます。Bass を下げすぎると痩せた音になります。",
+                     "Raise Treble a little at a time and stop when the muddiness clears. Lowering Bass too far makes the sound thin.") },
         new Recipe {
-            Title = "華やかにしたい",
-            Why = "キラキラ感は 5 kHz より上にあります。ここを持ち上げると、シンバルや弦の響きが明るくなります。",
+            Title = T("華やかにしたい", "Add sparkle"),
+            Why = T("キラキラ感は 5 kHz より上にあります。ここを持ち上げると、シンバルや弦の響きが明るくなります。",
+                    "Sparkle lives above 5 kHz. Lifting it brightens cymbals and the shimmer of strings."),
             Six = new[] { A("Treble", 2, 4), A("High-Mid", 1) },
             Three = new[] { A("Treble", 3), A("Mid", 1) },
-            Tip6 = "上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。",
-            Tip3 = "上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。" },
+            Tip6 = T("上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。",
+                     "Too much makes \"s\" sounds sting. Listen to vocals and stop just before they get harsh."),
+            Tip3 = T("上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。",
+                     "Too much makes \"s\" sounds sting. Listen to vocals and stop just before they get harsh.") },
         new Recipe {
-            Title = "空気感を感じたい",
-            Why = "音の消え際やホールの響きは、10 kHz 以上のとても小さな成分です。高域をなだらかに持ち上げ、そのすぐ下を少し控えると、刺さらずに広がりが出ます。",
+            Title = T("空気感を感じたい", "Feel more air and space"),
+            Why = T("音の消え際やホールの響きは、10 kHz 以上のとても小さな成分です。高域をなだらかに持ち上げ、そのすぐ下を少し控えると、刺さらずに広がりが出ます。",
+                    "The fade of each note and the sound of the room are tiny details above 10 kHz. Gently lifting the top end while easing off just below it adds space without harshness."),
             Six = new[] { A("Treble", 2, 3), A("High-Mid", -1) },
             Three = new[] { A("Treble", 3), A("Mid", -1) },
-            Tip6 = "静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。",
-            Tip3 = "静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。" },
+            Tip6 = T("静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。",
+                     "Quiet tracks and live recordings make it easiest to hear. If your ears get tired, bring Treble down by 1."),
+            Tip3 = T("静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。",
+                     "Quiet tracks and live recordings make it easiest to hear. If your ears get tired, bring Treble down by 1.") },
         new Recipe {
-            Title = "重低音の振動を感じたい",
-            Why = "体に響く「ズン」は 30〜60 Hz です。Sub を上げ、こもりの原因になる少し上の帯域は控えめにします。",
+            Title = T("重低音の振動を感じたい", "Feel the deep bass rumble"),
+            Why = T("体に響く「ズン」は 30〜60 Hz です。Sub を上げ、こもりの原因になる少し上の帯域は控えめにします。",
+                    "The rumble you feel in your body is around 30–60 Hz. Raise Sub and keep the range just above it modest, since that's where muddiness starts."),
             Six = new[] { A("Sub", 4, 6), A("Bass", 1, 2), A("Low-Mid", -1) },
             Three = new[] { A("Bass", 4, 6) },
-            Tip6 = "ヘッドホンによっては 40 Hz がほとんど出ません。上げても変わらなければ、それ以上は上げないでください（音割れ防止のため全体の音量が下がるだけです）。",
-            Tip3 = "3 ノブの Bass はなだらかに効くので、最も低い帯域は 6 ノブの Sub ほど持ち上がりません。もっと欲しいときは 6 ノブモードを試してください。" },
+            Tip6 = T("ヘッドホンによっては 40 Hz がほとんど出ません。上げても変わらなければ、それ以上は上げないでください（音割れ防止のため全体の音量が下がるだけです）。",
+                     "Some headphones barely reproduce 40 Hz. If raising it changes nothing, don't push further (it only lowers the overall volume to prevent clipping)."),
+            Tip3 = T("3 ノブの Bass はなだらかに効くので、最も低い帯域は 6 ノブの Sub ほど持ち上がりません。もっと欲しいときは 6 ノブモードを試してください。",
+                     "In 3-knob mode Bass works gently, so the very lowest range won't rise as much as with Sub in 6-knob mode. Try 6-knob mode if you want more.") },
         new Recipe {
-            Title = "ボーカルを前に出したい",
-            Why = "声の聞き取りやすさは 1〜4 kHz で決まります。ここを少し上げ、声を覆う低い中域を控えます。",
+            Title = T("ボーカルを前に出したい", "Bring vocals forward"),
+            Why = T("声の聞き取りやすさは 1〜4 kHz で決まります。ここを少し上げ、声を覆う低い中域を控えます。",
+                    "Vocal clarity is decided around 1–4 kHz. Lift it a little and ease off the lower mids that cover the voice."),
             Six = new[] { A("High-Mid", 2), A("Mid", 1), A("Low-Mid", -1) },
             Three = new[] { A("Mid", 2) },
-            Tip6 = "上げるのは +2 まで。それ以上は耳障りになりやすいです。",
-            Tip3 = "上げるのは +2 まで。それ以上は耳障りになりやすいです。" },
+            Tip6 = T("上げるのは +2 まで。それ以上は耳障りになりやすいです。", "Stay within +2. Beyond that it easily becomes harsh."),
+            Tip3 = T("上げるのは +2 まで。それ以上は耳障りになりやすいです。", "Stay within +2. Beyond that it easily becomes harsh.") },
         new Recipe {
-            Title = "刺さる音をやわらげたい",
-            Why = "耳に刺さる・シャリシャリするのは、3〜8 kHz の出すぎです。ここを少し削ります。",
+            Title = T("刺さる音をやわらげたい", "Tame harsh sounds"),
+            Why = T("耳に刺さる・シャリシャリするのは、3〜8 kHz の出すぎです。ここを少し削ります。",
+                    "Sounds that sting or sizzle come from too much energy around 3–8 kHz. Trim it a little."),
             Six = new[] { A("High-Mid", -3, -2), A("Treble", -2, -1) },
             Three = new[] { A("Treble", -2), A("Mid", -1) },
-            Tip6 = "削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。",
-            Tip3 = "削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。" },
+            Tip6 = T("削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。",
+                     "Cutting too much makes the sound dull. Aim for a setting you can listen to for hours without fatigue."),
+            Tip3 = T("削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。",
+                     "Cutting too much makes the sound dull. Aim for a setting you can listen to for hours without fatigue.") },
         new Recipe {
-            Title = "音に厚みがほしい",
-            Why = "音の太さや温かみは 100〜400 Hz にあります。ここを少し足すと、痩せた音に厚みが出ます。",
+            Title = T("音に厚みがほしい", "Add body and warmth"),
+            Why = T("音の太さや温かみは 100〜400 Hz にあります。ここを少し足すと、痩せた音に厚みが出ます。",
+                    "Body and warmth live around 100–400 Hz. Adding a little gives thin-sounding music more weight."),
             Six = new[] { A("Low-Mid", 2), A("Bass", 1) },
             Three = new[] { A("Bass", 2), A("Mid", 1) },
-            Tip6 = "足しすぎると「曇り」になります。曇りを感じたら Low-Mid を戻します。",
-            Tip3 = "足しすぎると「曇り」になります。曇りを感じたら Bass を戻します。" },
+            Tip6 = T("足しすぎると「曇り」になります。曇りを感じたら Low-Mid を戻します。",
+                     "Too much turns into muddiness. If it gets muddy, bring Low-Mid back down."),
+            Tip3 = T("足しすぎると「曇り」になります。曇りを感じたら Bass を戻します。",
+                     "Too much turns into muddiness. If it gets muddy, bring Bass back down.") },
         new Recipe {
-            Title = "小さい音量でも迫力がほしい",
-            Why = "人の耳は、音量が小さいと低音と高音を感じにくくなります。両端を少し足すと、小音量でもバランスよく聞こえます。",
+            Title = T("小さい音量でも迫力がほしい", "Full sound at low volume"),
+            Why = T("人の耳は、音量が小さいと低音と高音を感じにくくなります。両端を少し足すと、小音量でもバランスよく聞こえます。",
+                    "At low volume our ears are less sensitive to bass and treble. Adding a little at both ends keeps the balance when you listen quietly."),
             Six = new[] { A("Bass", 3), A("Treble", 2) },
             Three = new[] { A("Bass", 3), A("Treble", 2) },
-            Tip6 = "大きな音量に戻したら、つまみも戻すのがおすすめです。",
-            Tip3 = "大きな音量に戻したら、つまみも戻すのがおすすめです。" },
-    };
+            Tip6 = T("大きな音量に戻したら、つまみも戻すのがおすすめです。", "When you turn the volume back up, it's best to bring the knobs back too."),
+            Tip3 = T("大きな音量に戻したら、つまみも戻すのがおすすめです。", "When you turn the volume back up, it's best to bring the knobs back too.") },
+        };
+    }
 }
 
 // 1 つのつまみが担当するフィルター
@@ -543,7 +592,7 @@ class ResponseGraph : Control
 // チューニングガイド: 目的を選ぶと、動かすつまみと目安を本体の画面に示す（本体の横に開く）
 class GuideForm : Form
 {
-    const int ListW = 170, RightX = 12 + ListW + 12, RightW = 320;
+    const int ListW = 190, RightX = 12 + ListW + 12, RightW = 320;
     readonly MainForm main;
     ListBox list;
     Label title, why, section, adjust, caption, tip;
@@ -553,7 +602,7 @@ class GuideForm : Form
     public GuideForm(MainForm main)
     {
         this.main = main;
-        Text = "チューニングガイド";
+        Text = L.T("チューニングガイド", "Tuning Guide");
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = MinimizeBox = false;
         ShowInTaskbar = false;
@@ -562,7 +611,7 @@ class GuideForm : Form
         Font = new Font("Segoe UI", 9f);
 
         Label head = NewLabel(12, 12, ListW, 10f, FontStyle.Bold);
-        head.Text = "どうしたい？";
+        head.Text = L.T("どうしたい？", "What do you want?");
         head.Name = "head";
 
         list = new ListBox();
@@ -588,16 +637,16 @@ class GuideForm : Form
         mini.Size = new Size(RightW, 110);
         Controls.Add(mini);
         caption = NewLabel(RightX, 0, RightW, 8f, FontStyle.Regular);
-        caption.Text = "実線: 今のカーブ　点線: 目安どおりに回したときのカーブ";
+        caption.Text = L.T("実線: 今のカーブ　点線: 目安どおりに回したときのカーブ", "Solid: current curve   Dashed: with the suggested settings");
         tip = NewLabel(RightX, 0, RightW, 9f, FontStyle.Regular);
 
-        apply = NewButton("目安を当てはめる", 128);
-        undo = NewButton("元に戻す", 84);
-        ab = NewButton("聴き比べ", 96);
+        apply = NewButton(L.T("目安を当てはめる", "Apply suggestion"), 128);
+        undo = NewButton(L.T("元に戻す", "Undo"), 84);
+        ab = NewButton(L.T("聴き比べ", "A/B compare"), 96);
         ToolTip tips = new ToolTip();
-        tips.SetToolTip(apply, "目安の真ん中の値に、つまみをまとめて動かします");
-        tips.SetToolTip(undo, "「目安を当てはめる」を押す前の値に戻します");
-        tips.SetToolTip(ab, "EQ の ON / OFF を切り替えて、補正のありなしを聴き比べます");
+        tips.SetToolTip(apply, L.T("目安の真ん中の値に、つまみをまとめて動かします", "Moves the knobs to the middle of the suggested range"));
+        tips.SetToolTip(undo, L.T("「目安を当てはめる」を押す前の値に戻します", "Restores the values from before you applied the suggestion"));
+        tips.SetToolTip(ab, L.T("EQ の ON / OFF を切り替えて、補正のありなしを聴き比べます", "Turns the EQ on or off so you can compare with and without it"));
         apply.Click += delegate { Recipe r = Selected; if (r != null) main.ApplyRecipe(r); UpdateButtons(); };
         undo.Click += delegate { main.UndoRecipe(); UpdateButtons(); };
         ab.Click += delegate { main.ToggleEq(); };
@@ -651,17 +700,18 @@ class GuideForm : Form
         bool three = main.ThreeMode;
         title.Text = r.Title;
         why.Text = r.Why;
-        section.Text = "動かすつまみ（" + (three ? "3" : "6") + " ノブ）";
+        section.Text = L.T("動かすつまみ（" + (three ? "3" : "6") + " ノブ）", "Knobs to turn (" + (three ? "3" : "6") + "-knob mode)");
         StringBuilder sb = new StringBuilder();
         foreach (Adj a in r.For(three))
         {
             Band b = main.FindBand(a.Band);
             // 「−2 〜 −4」のように、小さく動かす側から書く
-            string range = a.Lo == a.Hi ? Db(a.Lo) : a.Hi <= 0 ? Db(a.Hi) + " 〜 " + Db(a.Lo) : Db(a.Lo) + " 〜 " + Db(a.Hi);
+            string to = L.T(" 〜 ", " to ");
+            string range = a.Lo == a.Hi ? Db(a.Lo) : a.Hi <= 0 ? Db(a.Hi) + to + Db(a.Lo) : Db(a.Lo) + to + Db(a.Hi);
             sb.AppendLine(b.DisplayName + "　" + range + " dB");
         }
         adjust.Text = sb.ToString().TrimEnd();
-        tip.Text = "コツ: " + r.TipFor(three);
+        tip.Text = L.T("コツ: ", "Tip: ") + r.TipFor(three);
 
         SuspendLayout();
         int y = Place(title, 12, 6);
@@ -799,8 +849,8 @@ class MainForm : Form
         layoutBtn.Click += delegate { SetHorizontal(!horizontal); };
         mode3Btn = AddButton("3", 0, 0, 28, 24);
         mode6Btn = AddButton("6", 0, 0, 28, 24);
-        tip.SetToolTip(mode3Btn, "3 ノブ（Treble / Mid / Bass）");
-        tip.SetToolTip(mode6Btn, "6 ノブ（全バンド）");
+        tip.SetToolTip(mode3Btn, L.T("3 ノブ（Treble / Mid / Bass）", "3 knobs (Treble / Mid / Bass)"));
+        tip.SetToolTip(mode6Btn, L.T("6 ノブ（全バンド）", "6 knobs (all bands)"));
         mode3Btn.Click += delegate { SetMode(true); };
         mode6Btn.Click += delegate { SetMode(false); };
 
@@ -829,7 +879,8 @@ class MainForm : Form
             b.NameLabel = AddLabel(b.DisplayName, 0, 0, 105, 10f, FontStyle.Regular, ContentAlignment.MiddleCenter);
             b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ContentAlignment.MiddleCenter);
 
-            tip.SetToolTip(b.Knob, "上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB");
+            tip.SetToolTip(b.Knob, L.T("上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB",
+                                       "Drag up/down or scroll to adjust (hold Shift for fine control)\nDouble-click to reset to 0 dB"));
             b.Knob.ValueChanged += delegate
             {
                 // 表示中のつまみの値を、今のモードの値として覚える
@@ -847,8 +898,8 @@ class MainForm : Form
         Controls.Add(onBox);
 
         // チューニングガイドを開く／閉じる
-        hintBtn = AddButton("ヒント", 0, 0, 56, 28);
-        tip.SetToolTip(hintBtn, "目的に合わせたチューニングのヒント");
+        hintBtn = AddButton(L.T("ヒント", "Guide"), 0, 0, 56, 28);
+        tip.SetToolTip(hintBtn, L.T("目的に合わせたチューニングのヒント", "Tuning tips for the sound you want"));
         hintBtn.Click += delegate { ToggleGuide(); };
         LocationChanged += delegate { if (guide != null) guide.FollowMain(); };
         SizeChanged += delegate { if (guide != null) guide.FollowMain(); };
@@ -936,11 +987,13 @@ class MainForm : Form
         if (s == warnStatus && device == warnDevice) return;
         warnStatus = s; warnDevice = device;
 
-        string name = string.IsNullOrEmpty(device) ? "今の出力先" : "「" + device + "」";
+        string name = string.IsNullOrEmpty(device) ? L.T("今の出力先", "the current output device") : L.T("「" + device + "」", "\"" + device + "\"");
         if (s == AudioCheck.Status.EnhancementsOff)
-            warnLabel.Text = "⚠ " + name + "の「オーディオの機能強化」がオフのため、EQ が効いていません。\nクリックでサウンド設定を開く";
+            warnLabel.Text = L.T("⚠ " + name + "の「オーディオの機能強化」がオフのため、EQ が効いていません。\nクリックでサウンド設定を開く",
+                                 "⚠ Audio enhancements are turned off for " + name + ", so the EQ has no effect.\nClick to open Sound settings");
         else if (s == AudioCheck.Status.NoApo)
-            warnLabel.Text = "⚠ " + name + "には Equalizer APO が入っていないため、EQ が効きません。\nクリックで Equalizer APO の設定を開く";
+            warnLabel.Text = L.T("⚠ " + name + "には Equalizer APO が入っていないため、EQ が効きません。\nクリックで Equalizer APO の設定を開く",
+                                 "⚠ Equalizer APO isn't installed for " + name + ", so the EQ has no effect.\nClick to open the Equalizer APO Configurator");
         // ウィンドウ表示前は Visible が常に false を返すので、表示するかどうかは自前で覚えておく
         warnShown = s == AudioCheck.Status.EnhancementsOff || s == AudioCheck.Status.NoApo;
         warnLabel.Visible = warnShown;
@@ -956,7 +1009,7 @@ class MainForm : Form
             else
                 System.Diagnostics.Process.Start("ms-settings:sound");
         }
-        catch (Exception ex) { MessageBox.Show("設定画面を開けませんでした:\n" + ex.Message, Text); }
+        catch (Exception ex) { MessageBox.Show(L.T("設定画面を開けませんでした:\n", "Couldn't open the settings:\n") + ex.Message, Text); }
     }
 
     public bool IsActive(Band b) { return !threeMode || b.InThree; }
@@ -1082,7 +1135,7 @@ class MainForm : Form
         mode3Btn.Location = new Point(width - 74, 12);
         layoutBtn.Location = new Point(width - 110, 12);
         layoutBtn.Text = horizontal ? "↕" : "↔";
-        tip.SetToolTip(layoutBtn, horizontal ? "縦レイアウトにする" : "横レイアウトにする");
+        tip.SetToolTip(layoutBtn, horizontal ? L.T("縦レイアウトにする", "Switch to vertical layout") : L.T("横レイアウトにする", "Switch to horizontal layout"));
 
         int top = ContentTop;
         if (warnShown)
@@ -1267,7 +1320,7 @@ class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show("config.txt を更新できませんでした:\n" + ex.Message, Text);
+            MessageBox.Show(L.T("config.txt を更新できませんでした:\n", "Couldn't update config.txt:\n") + ex.Message, Text);
         }
     }
 
@@ -1291,7 +1344,7 @@ class MainForm : Form
         state.Append(on ? " on" : " off");
 
         StringBuilder sb = new StringBuilder();
-        sb.AppendLine("# KnobEQ が自動生成するファイルです（手で編集しても上書きされます）");
+        sb.AppendLine(L.T("# KnobEQ が自動生成するファイルです（手で編集しても上書きされます）", "# Generated by KnobEQ (manual edits will be overwritten)"));
         sb.AppendLine(state.ToString());
         if (on)
         {
@@ -1311,13 +1364,14 @@ class MainForm : Form
             }
         }
         try { File.WriteAllText(eqFile, sb.ToString(), new UTF8Encoding(false)); }
-        catch (Exception ex) { Text = "Knob EQ (保存エラー)"; Console.Error.WriteLine(ex.Message); }
+        catch (Exception ex) { Text = L.T("Knob EQ (保存エラー)", "Knob EQ (save error)"); Console.Error.WriteLine(ex.Message); }
     }
 
     [STAThread]
     static void Main()
     {
         Application.EnableVisualStyles();
+        L.Init();
         Application.Run(new MainForm());
     }
 }

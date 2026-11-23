@@ -3,11 +3,14 @@
 # 見た目確認用のビルド（UI_TEST）をダーク表示・既定の青で起動し、決まった値を入れて撮影します。
 # 撮影中は Equalizer APO の knobeq.txt を書き換えるので、終わったら元に戻します。
 #   使い方: .\tools\make-screenshots.ps1
+#   英語の画面で撮るとき: .\tools\make-screenshots.ps1 -Lang en（docs\images\en と site\images\en に保存）
+param([ValidateSet('ja', 'en')][string]$Lang = 'ja')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $eqFile = 'C:\Program Files\EqualizerAPO\config\knobeq.txt'
-$docs = Join-Path $root 'docs\images'
-$site = Join-Path $root 'site\images'
+$sub = if ($Lang -eq 'en') { '\en' } else { '' }
+$docs = Join-Path $root "docs\images$sub"
+$site = Join-Path $root "site\images$sub"
 $work = Join-Path $root 'bin\uitest'
 New-Item -ItemType Directory -Force $docs, $site, $work | Out-Null
 
@@ -70,7 +73,7 @@ function Save-Both($bmp, $name) {
 function Scene($state, $warn, [scriptblock]$action) {
   Get-Process KnobEQ -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500
   Set-Content $eqFile "# state: $state on" -Encoding utf8
-  $env:KNOBEQ_THEME = 'dark'; $env:KNOBEQ_ACCENT = 'default'; $env:KNOBEQ_WARN = $warn
+  $env:KNOBEQ_THEME = 'dark'; $env:KNOBEQ_ACCENT = 'default'; $env:KNOBEQ_WARN = $warn; $env:KNOBEQ_LANG = $Lang
   $p = Start-Process $exe -PassThru; Start-Sleep 2
   $main = Get-Window $p.Id 'Knob EQ'
   & $action $p $main
@@ -83,15 +86,15 @@ try {
   $six = 'Treble=3.0 High-Mid=1.5 Mid=0.0 Low-Mid=-2.0 Bass=4.0 Sub=3.0'
   $three = '3:Treble=3.0 3:Mid=-2.0 3:Bass=5.0'
 
-  Scene "$six $three mode=6 layout=h" '' { param($p, $main) Save-Both (Capture $main) 'main.png' }
-  Scene "$six $three mode=3 layout=v" '' { param($p, $main) Save-Both (Capture $main) 'three.png' }
+  Scene "$six $three mode=6 layout=h" 'none' { param($p, $main) Save-Both (Capture $main) 'main.png' }
+  Scene "$six $three mode=3 layout=v" 'none' { param($p, $main) Save-Both (Capture $main) 'three.png' }
   Scene "$six $three mode=3 layout=h" 'off' { param($p, $main) Save-Both (Capture $main) 'warning.png' }
 
   # ガイド: 本体とガイドを横に並べた 1 枚にする
-  Scene "Treble=1.0 High-Mid=0.0 Mid=0.0 Low-Mid=0.0 Bass=2.0 Sub=0.0 $three mode=6 layout=h" '' {
+  Scene "Treble=1.0 High-Mid=0.0 Mid=0.0 Low-Mid=0.0 Bass=2.0 Sub=0.0 $three mode=6 layout=h" 'none' {
     param($p, $main)
-    Click-Button $main 'ヒント'
-    $guide = Get-Window $p.Id 'チューニングガイド'
+    Click-Button $main $(if ($Lang -eq 'en') { 'Guide' } else { 'ヒント' })
+    $guide = Get-Window $p.Id $(if ($Lang -eq 'en') { 'Tuning Guide' } else { 'チューニングガイド' })
     $a = Capture $main; $b = Capture $guide
     $gap = 24
     $all = New-Object Drawing.Bitmap ($a.Width + $gap + $b.Width), ([Math]::Max($a.Height, $b.Height))
@@ -101,7 +104,7 @@ try {
   }
 }
 finally {
-  Remove-Item Env:KNOBEQ_THEME, Env:KNOBEQ_ACCENT, Env:KNOBEQ_WARN -ErrorAction SilentlyContinue
+  Remove-Item Env:KNOBEQ_THEME, Env:KNOBEQ_ACCENT, Env:KNOBEQ_WARN, Env:KNOBEQ_LANG -ErrorAction SilentlyContinue
   Get-Process KnobEQ -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500
   [IO.File]::WriteAllBytes($eqFile, $backup)
   Write-Host "knobeq.txt を撮影前の状態に戻しました"
