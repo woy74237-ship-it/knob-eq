@@ -100,7 +100,13 @@ Windows に標準で入っている C# コンパイラを使うので、追加�
 .\build.ps1
 ```
 
-`bin\KnobEQ.exe` が作られます。
+`bin\KnobEQ.exe` が作られます。アイコン（`src\KnobEQ.ico`）も exe に埋め込まれます。
+
+アイコンのデザインを変えたときは、次のコマンドで `src\KnobEQ.ico` を作り直してからビルドします。
+
+```powershell
+.\tools\make-icon.ps1
+```
 
 ## 注意
 

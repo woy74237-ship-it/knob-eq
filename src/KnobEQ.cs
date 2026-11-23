@@ -433,6 +433,9 @@ class MainForm : Form
     {
         Theme.Load();
         Text = "Knob EQ";
+        // タイトルバーのアイコン（build.ps1 で埋め込んだ KnobEQ.ico。無ければ Windows 標準のまま）
+        using (Stream s = typeof(MainForm).Assembly.GetManifestResourceStream("KnobEQ.ico"))
+            if (s != null) Icon = new Icon(s);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
