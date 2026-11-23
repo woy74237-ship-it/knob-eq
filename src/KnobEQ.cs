@@ -81,6 +81,133 @@ class Band
     { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; }
 }
 
+// 全バンドを合わせた周波数特性（どれだけ持ち上げ／下げているか）を描くグラフ
+class ResponseGraph : Control
+{
+    const double Fs = 48000;            // 計算に使うサンプリング周波数
+    const double FMin = 20, FMax = 20000;
+    public Band[] Bands;
+    public Func<Band, bool> IsActive;
+    public bool On = true;
+
+    static readonly Color Panel = Color.FromArgb(36, 48, 61);
+    static readonly Color Grid = Color.FromArgb(62, 80, 98);
+    static readonly Color Text_ = Color.FromArgb(120, 150, 170);
+    static readonly Color Curve = Color.FromArgb(150, 205, 230);
+
+    public ResponseGraph()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    // RBJ Audio EQ Cookbook の式で 1 つのフィルターのゲイン (dB) を求める
+    static double BandDb(Band b, double gainDb, double f)
+    {
+        if (gainDb == 0) return 0;
+        double A = Math.Pow(10, gainDb / 40), w0 = 2 * Math.PI * b.Freq / Fs;
+        double c = Math.Cos(w0), s = Math.Sin(w0);
+        double b0, b1, b2, a0, a1, a2;
+        if (b.Filter == "PK")
+        {
+            double al = s / (2 * b.Q);
+            b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A;
+            a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A;
+        }
+        else
+        {
+            // Equalizer APO の LS / HS は Q 0.707 相当の傾き
+            double al = s / 2 * Math.Sqrt(2), sq = 2 * Math.Sqrt(A) * al;
+            if (b.Filter == "LS")
+            {
+                b0 = A * ((A + 1) - (A - 1) * c + sq); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - sq);
+                a0 = (A + 1) + (A - 1) * c + sq;       a1 = -2 * ((A - 1) + (A + 1) * c);    a2 = (A + 1) + (A - 1) * c - sq;
+            }
+            else
+            {
+                b0 = A * ((A + 1) + (A - 1) * c + sq); b1 = -2 * A * ((A - 1) + (A + 1) * c); b2 = A * ((A + 1) + (A - 1) * c - sq);
+                a0 = (A + 1) - (A - 1) * c + sq;       a1 = 2 * ((A - 1) - (A + 1) * c);      a2 = (A + 1) - (A - 1) * c - sq;
+            }
+        }
+        // H(e^jw) の大きさ
+        double w = 2 * Math.PI * f / Fs, c1 = Math.Cos(w), s1 = Math.Sin(w), c2 = Math.Cos(2 * w), s2 = Math.Sin(2 * w);
+        double nr = b0 + b1 * c1 + b2 * c2, ni = -(b1 * s1 + b2 * s2);
+        double dr = a0 + a1 * c1 + a2 * c2, di = -(a1 * s1 + a2 * s2);
+        return 10 * Math.Log10((nr * nr + ni * ni) / (dr * dr + di * di));
+    }
+
+    double TotalDb(double f)
+    {
+        if (!On || Bands == null) return 0;
+        double sum = 0;
+        foreach (Band b in Bands)
+            if (b.Knob != null && (IsActive == null || IsActive(b))) sum += BandDb(b, b.Knob.Value, f);
+        return sum;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics g = e.Graphics;
+        g.Clear(Panel);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        const int padL = 24, padR = 6, padT = 6, padB = 16;
+        RectangleF area = new RectangleF(padL, padT, Width - padL - padR, Height - padT - padB);
+
+        // 周波数ごとのゲインを計算し、縦軸の範囲を決める（±12 dB を基本に、超えたら 6 dB 刻みで広げる）
+        int n = (int)area.Width + 1;
+        double[] db = new double[n];
+        double peak = 0;
+        for (int i = 0; i < n; i++)
+        {
+            db[i] = TotalDb(FMin * Math.Pow(FMax / FMin, i / (double)(n - 1)));
+            peak = Math.Max(peak, Math.Abs(db[i]));
+        }
+        double range = Math.Max(12, Math.Ceiling(peak / 6) * 6);
+
+        Func<double, float> X = f => area.Left + (float)(Math.Log(f / FMin) / Math.Log(FMax / FMin)) * area.Width;
+        Func<double, float> Y = d => area.Top + (float)((range - d) / (2 * range)) * area.Height;
+
+        using (Font font = new Font("Segoe UI", 7f))
+        using (Brush tb = new SolidBrush(Text_))
+        using (Pen gp = new Pen(Grid, 1f))
+        {
+            StringFormat center = new StringFormat { Alignment = StringAlignment.Center };
+            StringFormat right = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+            foreach (double f in new double[] { 100, 1000, 10000 })
+            {
+                float x = X(f);
+                g.DrawLine(gp, x, area.Top, x, area.Bottom);
+                g.DrawString(f >= 1000 ? (f / 1000) + "k" : f.ToString(), font, tb, x, area.Bottom + 1, center);
+            }
+            for (double d = -range; d <= range; d += range / 2)
+            {
+                float y = Y(d);
+                using (Pen p = new Pen(d == 0 ? Text_ : Grid, 1f)) g.DrawLine(p, area.Left, y, area.Right, y);
+                string label = d > 0 ? "+" + d : d.ToString();
+                g.DrawString(label, font, tb, padL - 2, y, right);
+            }
+        }
+
+        // 補正カーブ（0 dB との間を薄く塗る）
+        PointF[] pts = new PointF[n];
+        for (int i = 0; i < n; i++) pts[i] = new PointF(area.Left + i, Y(db[i]));
+        using (GraphicsPath fill = new GraphicsPath())
+        {
+            fill.AddLine(area.Left, Y(0), area.Left, pts[0].Y);
+            fill.AddLines(pts);
+            fill.AddLine(area.Right, pts[n - 1].Y, area.Right, Y(0));
+            fill.CloseFigure();
+            using (Brush fb = new SolidBrush(Color.FromArgb(On ? 50 : 20, Curve))) g.FillPath(fb, fill);
+        }
+        using (Pen cp = new Pen(On ? Curve : Grid, 2f)) g.DrawLines(cp, pts);
+
+        if (!On)
+            using (Font f = new Font("Segoe UI", 9f, FontStyle.Bold))
+            using (Brush b = new SolidBrush(Text_))
+                g.DrawString("EQ OFF", f, b, area.Left + area.Width / 2, area.Top + 4, new StringFormat { Alignment = StringAlignment.Center });
+    }
+}
+
 class MainForm : Form
 {
     static readonly Color Bg = Color.FromArgb(46, 61, 77);
@@ -97,11 +224,13 @@ class MainForm : Form
         new Band("Sub",      "PK", 40,   1.0f, false),
     };
 
-    const int KnobTop = 45, Step = 105, KnobSize = 80;
+    const int GraphTop = 45, GraphHeight = 130;
+    const int KnobTop = GraphTop + GraphHeight + 15, Step = 105, KnobSize = 80;
     static readonly Color Accent = Color.FromArgb(120, 165, 190);
 
     CheckBox onBox;
     Button reset, mode3Btn, mode6Btn;
+    ResponseGraph graph;
     bool threeMode; // true: 3 ノブ (Treble / Mid / Bass)、false: 6 ノブ
     Timer saveTimer = new Timer();
     string configDir, eqFile;
@@ -127,6 +256,13 @@ class MainForm : Form
         mode3Btn.Click += delegate { SetMode(true); };
         mode6Btn.Click += delegate { SetMode(false); };
 
+        // 補正カーブのグラフ（見出しの下）
+        graph = new ResponseGraph();
+        graph.Bounds = new Rectangle(12, GraphTop, 216, GraphHeight);
+        graph.Bands = bands;
+        graph.IsActive = IsActive;
+        Controls.Add(graph);
+
         foreach (Band b in bands)
         {
             b.Knob = new Knob();
@@ -146,7 +282,7 @@ class MainForm : Form
         onBox.Checked = true;
         onBox.ForeColor = LabelColor;
         onBox.AutoSize = true;
-        onBox.CheckedChanged += delegate { ScheduleSave(); };
+        onBox.CheckedChanged += delegate { graph.On = onBox.Checked; graph.Invalidate(); ScheduleSave(); };
         Controls.Add(onBox);
 
         reset = AddButton("Reset", 0, 0, 75, 28);
@@ -198,6 +334,7 @@ class MainForm : Form
         // 選択中のモードのボタンを塗りつぶして示す
         StyleModeButton(mode3Btn, threeMode);
         StyleModeButton(mode6Btn, !threeMode);
+        graph.Invalidate();
         ResumeLayout();
     }
 
@@ -239,7 +376,11 @@ class MainForm : Form
 
     Band Find(string name) { foreach (Band b in bands) if (b.Name == name) return b; return null; }
 
-    void UpdateLabels() { foreach (Band b in bands) b.ValueLabel.Text = Fmt(b.Knob.Value); }
+    void UpdateLabels()
+    {
+        foreach (Band b in bands) b.ValueLabel.Text = Fmt(b.Knob.Value);
+        if (graph != null) graph.Invalidate();
+    }
 
     void ScheduleSave() { if (loading) return; saveTimer.Stop(); saveTimer.Start(); }
 
