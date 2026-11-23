@@ -14,12 +14,12 @@ using Microsoft.Win32;
 static class Theme
 {
     public static bool Dark;
-    public static Color Bg, Panel, Grid, Label, Value, Ring, Accent, OnAccent;
+    public static Color Bg, Panel, Grid, Label, Value, Ring, Accent, OnAccent, WarnBg, WarnText;
 
     public static void Load()
     {
         Dark = ReadDword(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1) == 0;
-#if THEME_TEST
+#if UI_TEST
         // 見た目確認用のビルドだけ、環境変数でライト／ダークを強制できる
         string force = Environment.GetEnvironmentVariable("KNOBEQ_THEME");
         if (force == "dark") Dark = true; else if (force == "light") Dark = false;
@@ -29,12 +29,14 @@ static class Theme
             Bg = Rgb(0x20, 0x20, 0x20); Panel = Rgb(0x2B, 0x2B, 0x2B); Grid = Rgb(0x3D, 0x3D, 0x3D);
             Label = Rgb(0xC5, 0xC5, 0xC5); Value = Rgb(0xFF, 0xFF, 0xFF); Ring = Rgb(0x9C, 0x9C, 0x9C);
             OnAccent = Rgb(0, 0, 0);
+            WarnBg = Rgb(0x43, 0x35, 0x19); WarnText = Rgb(0xFF, 0xFF, 0xFF); // Windows 11 の注意バーの色
         }
         else
         {
             Bg = Rgb(0xF3, 0xF3, 0xF3); Panel = Rgb(0xFF, 0xFF, 0xFF); Grid = Rgb(0xE5, 0xE5, 0xE5);
             Label = Rgb(0x5D, 0x5D, 0x5D); Value = Rgb(0x1A, 0x1A, 0x1A); Ring = Rgb(0x86, 0x86, 0x86);
             OnAccent = Rgb(0xFF, 0xFF, 0xFF);
+            WarnBg = Rgb(0xFF, 0xF4, 0xCE); WarnText = Rgb(0x1A, 0x1A, 0x1A);
         }
         // アクセントカラーは、ダークでは明るめ、ライトでは暗めの色を使う（Windows 11 と同じ使い分け）
         Accent = ReadAccent(Dark ? 1 : 4, Dark ? Rgb(0x4C, 0xC2, 0xFF) : Rgb(0x00, 0x5F, 0xB8));
@@ -79,6 +81,89 @@ static class Theme
     {
         int on = Dark ? 1 : 0;
         try { DwmSetWindowAttribute(hwnd, 20, ref on, 4); } catch { }
+    }
+}
+
+// 今の出力先で Equalizer APO が働ける状態かを調べる
+static class AudioCheck
+{
+    public enum Status { Ok, NoApo, EnhancementsOff, Unknown }
+
+    const string ApoClsid = "{EACD2258-FCAC-4FF4-B36D-419E924A6D79}";
+    // PKEY_AudioEndpoint_Disable_SysFx（1 なら「オーディオの機能強化」がオフ）
+    const string DisableSysFx = "{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5";
+    const string RenderKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\";
+
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumerator { }
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
+    interface IMMDeviceEnumerator
+    {
+        int EnumAudioEndpoints(); // 使わない（並び順を合わせるためだけに宣言）
+        [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+    }
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("D666063F-1587-4E43-81F1-B948E807363F")]
+    interface IMMDevice
+    {
+        int Activate();         // 使わない
+        int OpenPropertyStore(); // 使わない
+        [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+    }
+
+    // 既定の出力デバイスの ID（例: {0.0.0.00000000}.{guid}）。無ければ null
+    static string DefaultRenderId()
+    {
+        object e = null; IMMDevice dev = null;
+        try
+        {
+            e = new MMDeviceEnumerator();
+            if (((IMMDeviceEnumerator)e).GetDefaultAudioEndpoint(0 /* eRender */, 0 /* eConsole */, out dev) != 0 || dev == null) return null;
+            string id;
+            return dev.GetId(out id) == 0 ? id : null;
+        }
+        catch { return null; }
+        finally
+        {
+            if (dev != null) Marshal.ReleaseComObject(dev);
+            if (e != null) Marshal.ReleaseComObject(e);
+        }
+    }
+
+    public static Status Check(out string deviceName)
+    {
+        deviceName = null;
+#if UI_TEST
+        // 見た目確認用のビルドだけ、環境変数で注意バーの状態を強制できる
+        string force = Environment.GetEnvironmentVariable("KNOBEQ_WARN");
+        if (force == "off") { deviceName = "Test Headphones"; return Status.EnhancementsOff; }
+        if (force == "noapo") { deviceName = "Test Speakers"; return Status.NoApo; }
+#endif
+        string id = DefaultRenderId();
+        if (id == null) return Status.Unknown;
+        string guid = id.Substring(id.LastIndexOf('.') + 1);
+        try
+        {
+            using (RegistryKey props = Registry.LocalMachine.OpenSubKey(RenderKey + guid + @"\Properties"))
+                if (props != null)
+                    deviceName = (props.GetValue("{b3f8fa53-0004-438e-9003-51a46e139bfc},6") as string)
+                              ?? (props.GetValue("{a45c254e-df1c-4efd-8020-67d146a850e0},2") as string);
+
+            using (RegistryKey fx = Registry.LocalMachine.OpenSubKey(RenderKey + guid + @"\FxProperties"))
+            {
+                if (fx == null) return Status.NoApo;
+                bool hasApo = false;
+                foreach (string name in fx.GetValueNames())
+                {
+                    object v = fx.GetValue(name);
+                    string s = v is string[] ? string.Join(",", (string[])v) : Convert.ToString(v);
+                    if (s != null && s.IndexOf(ApoClsid, StringComparison.OrdinalIgnoreCase) >= 0) { hasApo = true; break; }
+                }
+                if (!hasApo) return Status.NoApo;
+                object off = fx.GetValue(DisableSysFx);
+                if (off is int && (int)off != 0) return Status.EnhancementsOff;
+                return Status.Ok;
+            }
+        }
+        catch { return Status.Unknown; }
     }
 }
 
@@ -294,10 +379,15 @@ class MainForm : Form
         new Band("Sub",      "PK", 40,   1.0f, false),
     };
 
-    const int GraphTop = 45, GraphHeight = 130;
-    const int KnobTop = GraphTop + GraphHeight + 15, Step = 105, KnobSize = 80;
+    const int ContentTop = 45, GraphHeight = 130;
+    const int Step = 105, KnobSize = 80;
 
     Label titleLabel;
+    Label warnLabel;   // EQ が効かない状態のときに出す注意（グラフの上）
+    AudioCheck.Status warnStatus = AudioCheck.Status.Ok;
+    bool warnShown;
+    string warnDevice;
+    Timer checkTimer = new Timer();
     CheckBox onBox;
     Button reset, mode3Btn, mode6Btn;
     ResponseGraph graph;
@@ -327,8 +417,17 @@ class MainForm : Form
         mode6Btn.Click += delegate { SetMode(false); };
 
         // 補正カーブのグラフ（見出しの下）
+        // 注意バー（ふだんは隠しておく。クリックで直すための設定画面を開く）
+        warnLabel = new Label();
+        warnLabel.Visible = false;
+        warnLabel.Font = new Font("Segoe UI", 8.5f);
+        warnLabel.Padding = new Padding(6, 4, 6, 4);
+        warnLabel.Cursor = Cursors.Hand;
+        warnLabel.Click += delegate { OpenFixSettings(); };
+        Controls.Add(warnLabel);
+
         graph = new ResponseGraph();
-        graph.Bounds = new Rectangle(12, GraphTop, 216, GraphHeight);
+        graph.Size = new Size(216, GraphHeight);
         graph.Bands = bands;
         graph.IsActive = IsActive;
         Controls.Add(graph);
@@ -370,10 +469,16 @@ class MainForm : Form
         configDir = FindConfigDir();
         eqFile = Path.Combine(configDir, "knobeq.txt");
         Load_();
+        CheckAudio();
         DoLayout();
         ApplyTheme();
         EnsureInclude();
         Save();
+
+        // 出力先の切り替えや設定の変更に気づけるよう、数秒ごとに調べ直す
+        checkTimer.Interval = 3000;
+        checkTimer.Tick += delegate { CheckAudio(); };
+        checkTimer.Start();
 
         // Windows の設定でライト／ダークやアクセントカラーが変わったら、すぐに配色を切り替える
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -410,6 +515,8 @@ class MainForm : Form
             b.Knob.Invalidate();
         }
         onBox.ForeColor = Theme.Label;
+        warnLabel.BackColor = Theme.WarnBg;
+        warnLabel.ForeColor = Theme.WarnText;
         foreach (Button btn in new Button[] { mode3Btn, mode6Btn, reset })
         {
             btn.FlatAppearance.BorderColor = Theme.Ring;
@@ -421,6 +528,37 @@ class MainForm : Form
         graph.Invalidate();
         if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
         Invalidate(true);
+    }
+
+    // 今の出力先で EQ が効く状態かを調べ、変わっていれば注意バーを出し直す
+    void CheckAudio()
+    {
+        string device;
+        AudioCheck.Status s = AudioCheck.Check(out device);
+        if (s == warnStatus && device == warnDevice) return;
+        warnStatus = s; warnDevice = device;
+
+        string name = string.IsNullOrEmpty(device) ? "今の出力先" : "「" + device + "」";
+        if (s == AudioCheck.Status.EnhancementsOff)
+            warnLabel.Text = "⚠ " + name + "の「オーディオの機能強化」がオフのため、EQ が効いていません。\nクリックでサウンド設定を開く";
+        else if (s == AudioCheck.Status.NoApo)
+            warnLabel.Text = "⚠ " + name + "には Equalizer APO が入っていないため、EQ が効きません。\nクリックで Equalizer APO の設定を開く";
+        // ウィンドウ表示前は Visible が常に false を返すので、表示するかどうかは自前で覚えておく
+        warnShown = s == AudioCheck.Status.EnhancementsOff || s == AudioCheck.Status.NoApo;
+        warnLabel.Visible = warnShown;
+        if (IsHandleCreated) DoLayout(); // 起動時はこのあとコンストラクターで並べる
+    }
+
+    void OpenFixSettings()
+    {
+        try
+        {
+            if (warnStatus == AudioCheck.Status.NoApo)
+                System.Diagnostics.Process.Start(Path.Combine(Path.GetDirectoryName(configDir), "DeviceSelector.exe"));
+            else
+                System.Diagnostics.Process.Start("ms-settings:sound");
+        }
+        catch (Exception ex) { MessageBox.Show("設定画面を開けませんでした:\n" + ex.Message, Text); }
     }
 
     bool IsActive(Band b) { return !threeMode || b.InThree; }
@@ -448,6 +586,15 @@ class MainForm : Form
     void DoLayout()
     {
         SuspendLayout();
+        int top = ContentTop;
+        if (warnShown)
+        {
+            Size need = TextRenderer.MeasureText(warnLabel.Text, warnLabel.Font, new Size(216 - 12, 0), TextFormatFlags.WordBreak);
+            warnLabel.Bounds = new Rectangle(12, top, 216, need.Height + 8 + 4);
+            top = warnLabel.Bottom + 8;
+        }
+        graph.Location = new Point(12, top);
+        int knobTop = graph.Bottom + 15;
         int row = 0;
         foreach (Band b in bands)
         {
@@ -455,13 +602,13 @@ class MainForm : Form
             bool show = IsActive(b);
             b.Knob.Visible = b.NameLabel.Visible = b.ValueLabel.Visible = show;
             if (!show) continue;
-            int y = KnobTop + row * Step;
+            int y = knobTop + row * Step;
             b.Knob.Location = new Point(25, y);            // つまみは左
             b.NameLabel.Location = new Point(120, y + 2);  // 名前と値は右
             b.ValueLabel.Location = new Point(120, y + 28);
             row++;
         }
-        int bottom = KnobTop + row * Step;
+        int bottom = knobTop + row * Step;
         onBox.Location = new Point(20, bottom + 12);
         reset.Location = new Point(145, bottom + 7);
         ClientSize = new Size(240, bottom + 50);
