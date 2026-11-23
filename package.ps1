@@ -1,5 +1,5 @@
 # 配布用 ZIP を作成する
-#   dist\KnobEQ-v<バージョン>.zip        … exe と README.txt
+#   dist\KnobEQ-v<バージョン>.zip        … exe と README.txt（日本語）、README_en.txt（英語）
 #   dist\KnobEQ-v<バージョン>.zip.sha256 … 改ざん確認用のハッシュ
 # バージョンは src\KnobEQ.cs の AssemblyInformationalVersion から自動で取得します。
 # 作成した ZIP は Microsoft Defender でスキャンし、検出された場合は ZIP を削除して中止します。
@@ -20,6 +20,7 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $exe $stage
 Copy-Item (Join-Path $PSScriptRoot 'assets\README.txt') $stage
+Copy-Item (Join-Path $PSScriptRoot 'assets\README_en.txt') $stage
 
 if (Test-Path $zip) { Remove-Item $zip }
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip

@@ -27,7 +27,8 @@ Save-IconPng 180 (Join-Path $site 'apple-touch-icon.png')
 (New-Object Drawing.Icon $ico, 32, 32).ToBitmap().Save((Join-Path $site 'favicon-32.png'), [Drawing.Imaging.ImageFormat]::Png)
 
 # アイコン・アプリ名・説明・画面写真を並べたバナー
-function Save-Banner($w, $h, $path) {
+function Save-Banner($w, $h, $path, $lang = 'ja') {
+    $en = $lang -eq 'en'
     $bmp = New-Object Drawing.Bitmap $w, $h
     $g = [Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = 'AntiAlias'; $g.InterpolationMode = 'HighQualityBicubic'; $g.TextRenderingHint = 'AntiAliasGridFit'
@@ -45,14 +46,14 @@ function Save-Banner($w, $h, $path) {
     $blue = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(0x4C, 0xC2, 0xFF))
     $g.DrawString('KnobEQ', (New-Object Drawing.Font 'Segoe UI', (54 * $k), ([Drawing.FontStyle]::Bold), ([Drawing.GraphicsUnit]::Pixel)), $white, $x - 4, [int](250 * $k))
     $f2 = New-Object Drawing.Font 'Yu Gothic UI', (34 * $k), ([Drawing.FontStyle]::Bold), ([Drawing.GraphicsUnit]::Pixel)
-    $g.DrawString('つまみを回すだけで、', $f2, $white, $x, [int](340 * $k))
-    $g.DrawString('Windows の音を好みに。', $f2, $white, $x, [int](388 * $k))
+    $g.DrawString($(if ($en) { 'Turn a knob.' } else { 'つまみを回すだけで、' }), $f2, $white, $x, [int](340 * $k))
+    $g.DrawString($(if ($en) { 'Make Windows sound right.' } else { 'Windows の音を好みに。' }), $f2, $white, $x, [int](388 * $k))
     $f3 = New-Object Drawing.Font 'Yu Gothic UI', (22 * $k), ([Drawing.FontStyle]::Regular), ([Drawing.GraphicsUnit]::Pixel)
-    $g.DrawString('Equalizer APO 用イコライザ ・ 無料 ・ インストール不要', $f3, $dim, $x, [int](460 * $k))
-    $g.DrawString('迷ったら、目的から選べるチューニングガイド付き', $f3, $blue, $x, [int](496 * $k))
+    $g.DrawString($(if ($en) { 'Equalizer for Equalizer APO  ·  Free  ·  No install' } else { 'Equalizer APO 用イコライザ ・ 無料 ・ インストール不要' }), $f3, $dim, $x, [int](460 * $k))
+    $g.DrawString($(if ($en) { 'Includes a goal-based tuning guide' } else { '迷ったら、目的から選べるチューニングガイド付き' }), $f3, $blue, $x, [int](496 * $k))
 
     # 画面写真（右側）
-    $shot = [Drawing.Image]::FromFile((Join-Path $site 'main.png'))
+    $shot = [Drawing.Image]::FromFile((Join-Path $site $(if ($en) { 'en\main.png' } else { 'main.png' })))
     $sw = [int](560 * $k); $sh = [int]($shot.Height * $sw / $shot.Width)
     $sx = $w - $sw - [int](56 * $k); $sy = [int](($h - $sh) / 2)
     $g.FillRectangle((New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(70, 0, 0, 0))), $sx + 6, $sy + 10, $sw, $sh)
@@ -64,3 +65,4 @@ function Save-Banner($w, $h, $path) {
 }
 Save-Banner 1200 630 (Join-Path $site 'ogp.png')
 Save-Banner 1280 670 (Join-Path $promo 'note-header.png')
+Save-Banner 1200 630 (Join-Path $site 'en\ogp.png') 'en'

@@ -812,7 +812,16 @@ class MainForm : Form
     const int Edge = 12, CellWidth = 216, Columns = 3; // 1 つのつまみ（つまみ + 名前と値）の幅。横レイアウトは 3 列
 
     bool horizontal; // true: 横レイアウト（グラフの下につまみを 3 つずつ並べる）、false: 縦に 1 列
-    Button layoutBtn;
+    Button layoutBtn, supportBtn;
+
+    const string OfuseUrl = "https://ofuse.me/c0fdccc4";
+    const string KofiUrl = "https://ko-fi.com/waltowen404923";
+
+    void OpenSupportPage()
+    {
+        try { System.Diagnostics.Process.Start(L.Ja ? OfuseUrl : KofiUrl); }
+        catch (Exception ex) { MessageBox.Show(L.T("ページを開けませんでした:\n", "Couldn't open the page:\n") + ex.Message, Text); }
+    }
     ToolTip tip;
 
     Label titleLabel;
@@ -841,14 +850,18 @@ class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
-        titleLabel = AddLabel("EQUALIZER", 18, 10, 110, 11f, FontStyle.Bold, ContentAlignment.MiddleLeft);
+        titleLabel = AddLabel("EQUALIZER", 18, 10, 90, 11f, FontStyle.Bold, ContentAlignment.MiddleLeft);
 
         // 右上のボタン: 縦／横レイアウトの切り替えと、3 / 6 ノブの切り替え（位置は DoLayout で決める）
         tip = new ToolTip();
-        layoutBtn = AddButton("", 0, 0, 28, 24);
+        // 開発を応援するページを開く（日本語の画面は OFUSE、英語の画面は Ko-fi）
+        supportBtn = AddButton("♥", 0, 0, 24, 24);
+        tip.SetToolTip(supportBtn, L.T("開発を応援する（OFUSE）", "Support KnobEQ (Ko-fi)"));
+        supportBtn.Click += delegate { OpenSupportPage(); };
+        layoutBtn = AddButton("", 0, 0, 24, 24);
         layoutBtn.Click += delegate { SetHorizontal(!horizontal); };
-        mode3Btn = AddButton("3", 0, 0, 28, 24);
-        mode6Btn = AddButton("6", 0, 0, 28, 24);
+        mode3Btn = AddButton("3", 0, 0, 24, 24);
+        mode6Btn = AddButton("6", 0, 0, 24, 24);
         tip.SetToolTip(mode3Btn, L.T("3 ノブ（Treble / Mid / Bass）", "3 knobs (Treble / Mid / Bass)"));
         tip.SetToolTip(mode6Btn, L.T("6 ノブ（全バンド）", "6 knobs (all bands)"));
         mode3Btn.Click += delegate { SetMode(true); };
@@ -962,13 +975,14 @@ class MainForm : Form
         onBox.ForeColor = Theme.Label;
         warnLabel.BackColor = Theme.WarnBg;
         warnLabel.ForeColor = Theme.WarnText;
-        foreach (Button btn in new Button[] { layoutBtn, mode3Btn, mode6Btn, hintBtn, reset })
+        foreach (Button btn in new Button[] { supportBtn, layoutBtn, mode3Btn, mode6Btn, hintBtn, reset })
         {
             btn.FlatAppearance.BorderColor = Theme.Ring;
             btn.FlatAppearance.MouseOverBackColor = Theme.Panel;
         }
         StyleModeButton(reset, false);
         StyleModeButton(layoutBtn, false);
+        StyleModeButton(supportBtn, false);
         StyleModeButton(hintBtn, guide != null);
         if (guide != null) guide.ApplyTheme();
         if (hintRecipe != null) ShowHint(hintRecipe); // ガイドで光らせているつまみの名前を塗り直す
@@ -1131,9 +1145,11 @@ class MainForm : Form
         int width = contentW + Edge * 2;
 
         // 見出しの右側のボタン（右端にそろえる）
-        mode6Btn.Location = new Point(width - 44, 12);
-        mode3Btn.Location = new Point(width - 74, 12);
-        layoutBtn.Location = new Point(width - 110, 12);
+        // 右から 6・3（2 つで 1 組）、レイアウト、応援の順。縦レイアウトでも見出しと重ならない幅にしている
+        mode6Btn.Location = new Point(width - Edge - 24, 12);
+        mode3Btn.Location = new Point(mode6Btn.Left - 26, 12);
+        layoutBtn.Location = new Point(mode3Btn.Left - 30, 12);
+        supportBtn.Location = new Point(layoutBtn.Left - 28, 12);
         layoutBtn.Text = horizontal ? "↕" : "↔";
         tip.SetToolTip(layoutBtn, horizontal ? L.T("縦レイアウトにする", "Switch to vertical layout") : L.T("横レイアウトにする", "Switch to horizontal layout"));
 
