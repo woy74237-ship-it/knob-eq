@@ -75,8 +75,10 @@ class Band
 {
     public string Name, Filter; // Filter は Equalizer APO の書式 ("LS", "PK", "HS")
     public int Freq; public float Q;
-    public Knob Knob; public Label ValueLabel;
-    public Band(string name, string filter, int freq, float q) { Name = name; Filter = filter; Freq = freq; Q = q; }
+    public bool InThree; // 3 ノブモードでも表示するか
+    public Knob Knob; public Label NameLabel, ValueLabel;
+    public Band(string name, string filter, int freq, float q, bool inThree)
+    { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; }
 }
 
 class MainForm : Form
@@ -87,48 +89,53 @@ class MainForm : Form
 
     // 画面の上から順に並ぶ（高音 → 低音）
     Band[] bands = new Band[] {
-        new Band("Treble",   "HS", 8000, 0f),
-        new Band("High-Mid", "PK", 3000, 1.0f),
-        new Band("Mid",      "PK", 1000, 1.0f),
-        new Band("Low-Mid",  "PK", 300,  1.0f),
-        new Band("Bass",     "LS", 100,  0f),
-        new Band("Sub",      "PK", 40,   1.0f),
+        new Band("Treble",   "HS", 8000, 0f,   true),
+        new Band("High-Mid", "PK", 3000, 1.0f, false),
+        new Band("Mid",      "PK", 1000, 1.0f, true),
+        new Band("Low-Mid",  "PK", 300,  1.0f, false),
+        new Band("Bass",     "LS", 100,  0f,   true),
+        new Band("Sub",      "PK", 40,   1.0f, false),
     };
 
+    const int KnobTop = 45, Step = 105, KnobSize = 80;
+    static readonly Color Accent = Color.FromArgb(120, 165, 190);
+
     CheckBox onBox;
+    Button reset, mode3Btn, mode6Btn;
+    bool threeMode; // true: 3 ノブ (Treble / Mid / Bass)、false: 6 ノブ
     Timer saveTimer = new Timer();
     string configDir, eqFile;
     bool loading;
 
     public MainForm()
     {
-        const int top = 45, step = 105, knobSize = 80;
         Text = "Knob EQ";
         BackColor = Bg;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
-        int bottom = top + bands.Length * step;
-        ClientSize = new Size(240, bottom + 50);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
-        AddLabel("EQUALIZER", 0, 10, 240, 11f, FontStyle.Bold, LabelColor, ContentAlignment.MiddleCenter);
+        AddLabel("EQUALIZER", 18, 10, 130, 11f, FontStyle.Bold, LabelColor, ContentAlignment.MiddleLeft);
 
+        // 3 / 6 ノブの切り替えボタン（右上）
         ToolTip tip = new ToolTip();
-        for (int i = 0; i < bands.Length; i++)
-        {
-            Band b = bands[i];
-            int y = top + i * step;
-            const int knobX = 25, textX = 120; // つまみは左、名前と値は右に揃える
+        mode3Btn = AddButton("3", 166, 12, 28, 24);
+        mode6Btn = AddButton("6", 196, 12, 28, 24);
+        tip.SetToolTip(mode3Btn, "3 ノブ（Treble / Mid / Bass）");
+        tip.SetToolTip(mode6Btn, "6 ノブ（全バンド）");
+        mode3Btn.Click += delegate { SetMode(true); };
+        mode6Btn.Click += delegate { SetMode(false); };
 
+        foreach (Band b in bands)
+        {
             b.Knob = new Knob();
-            b.Knob.Location = new Point(knobX, y);
-            b.Knob.Size = new Size(knobSize, knobSize);
+            b.Knob.Size = new Size(KnobSize, KnobSize);
             Controls.Add(b.Knob);
 
             string freq = b.Freq >= 1000 ? (b.Freq / 1000) + "k" : b.Freq.ToString();
-            AddLabel(b.Name + "  " + freq, textX, y + 2, 105, 10f, FontStyle.Regular, LabelColor, ContentAlignment.MiddleCenter);
-            b.ValueLabel = AddLabel("0.0", textX, y + 28, 105, 20f, FontStyle.Regular, ValueColor, ContentAlignment.MiddleCenter);
+            b.NameLabel = AddLabel(b.Name + "  " + freq, 0, 0, 105, 10f, FontStyle.Regular, LabelColor, ContentAlignment.MiddleCenter);
+            b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ValueColor, ContentAlignment.MiddleCenter);
 
             tip.SetToolTip(b.Knob, "上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB");
             b.Knob.ValueChanged += delegate { UpdateLabels(); ScheduleSave(); };
@@ -138,20 +145,13 @@ class MainForm : Form
         onBox.Text = "EQ ON";
         onBox.Checked = true;
         onBox.ForeColor = LabelColor;
-        onBox.Location = new Point(20, bottom + 12);
         onBox.AutoSize = true;
         onBox.CheckedChanged += delegate { ScheduleSave(); };
         Controls.Add(onBox);
 
-        Button reset = new Button();
-        reset.Text = "Reset";
-        reset.FlatStyle = FlatStyle.Flat;
-        reset.ForeColor = LabelColor;
-        reset.FlatAppearance.BorderColor = Color.FromArgb(120, 165, 190);
-        reset.Location = new Point(145, bottom + 7);
-        reset.Size = new Size(75, 28);
-        reset.Click += delegate { foreach (Band b in bands) b.Knob.Value = 0; };
-        Controls.Add(reset);
+        reset = AddButton("Reset", 0, 0, 75, 28);
+        // 表示中のつまみだけ 0 に戻す（隠れているつまみの値は残す）
+        reset.Click += delegate { foreach (Band b in bands) if (IsActive(b)) b.Knob.Value = 0; };
 
         saveTimer.Interval = 120;
         saveTimer.Tick += delegate { saveTimer.Stop(); Save(); };
@@ -159,8 +159,65 @@ class MainForm : Form
         configDir = FindConfigDir();
         eqFile = Path.Combine(configDir, "knobeq.txt");
         Load_();
+        DoLayout();
         EnsureInclude();
         Save();
+    }
+
+    bool IsActive(Band b) { return !threeMode || b.InThree; }
+
+    void SetMode(bool three)
+    {
+        if (three == threeMode) return;
+        threeMode = three;
+        DoLayout();
+        ScheduleSave();
+    }
+
+    // 表示中のつまみを上から詰めて並べ、ウィンドウの高さを合わせる
+    void DoLayout()
+    {
+        SuspendLayout();
+        int row = 0;
+        foreach (Band b in bands)
+        {
+            bool show = IsActive(b);
+            b.Knob.Visible = b.NameLabel.Visible = b.ValueLabel.Visible = show;
+            if (!show) continue;
+            int y = KnobTop + row * Step;
+            b.Knob.Location = new Point(25, y);            // つまみは左
+            b.NameLabel.Location = new Point(120, y + 2);  // 名前と値は右
+            b.ValueLabel.Location = new Point(120, y + 28);
+            row++;
+        }
+        int bottom = KnobTop + row * Step;
+        onBox.Location = new Point(20, bottom + 12);
+        reset.Location = new Point(145, bottom + 7);
+        ClientSize = new Size(240, bottom + 50);
+
+        // 選択中のモードのボタンを塗りつぶして示す
+        StyleModeButton(mode3Btn, threeMode);
+        StyleModeButton(mode6Btn, !threeMode);
+        ResumeLayout();
+    }
+
+    void StyleModeButton(Button btn, bool selected)
+    {
+        btn.BackColor = selected ? Accent : Bg;
+        btn.ForeColor = selected ? Bg : LabelColor;
+    }
+
+    Button AddButton(string text, int x, int y, int w, int h)
+    {
+        Button btn = new Button();
+        btn.Text = text;
+        btn.FlatStyle = FlatStyle.Flat;
+        btn.ForeColor = LabelColor;
+        btn.FlatAppearance.BorderColor = Accent;
+        btn.Location = new Point(x, y);
+        btn.Size = new Size(w, h);
+        Controls.Add(btn);
+        return btn;
     }
 
     Label AddLabel(string text, int x, int y, int w, float size, FontStyle style, Color color, ContentAlignment align)
@@ -204,7 +261,7 @@ class MainForm : Form
     }
 
     // 前回の値を knobeq.txt の先頭コメントから復元
-    //   書式: "# state: Treble=0.0 High-Mid=0.0 ... Bass=1.0 Sub=0.0 on"
+    //   書式: "# state: Treble=0.0 High-Mid=0.0 ... Bass=1.0 Sub=0.0 mode=6 on"
     void Load_()
     {
         loading = true;
@@ -215,12 +272,14 @@ class MainForm : Form
                 foreach (string line in File.ReadAllLines(eqFile))
                 {
                     if (!line.StartsWith("# state:")) continue;
+                    threeMode = false; // mode= が無い古い形式は 6 ノブ扱い
                     string[] p = line.Substring(8).Trim().Split(' ');
                     if (p.Length == 0) continue;
                     foreach (string kv in p)
                     {
                         int eq = kv.IndexOf('=');
                         if (eq < 0) continue;
+                        if (kv.StartsWith("mode=")) { threeMode = kv == "mode=3"; continue; }
                         Band b = Find(kv.Substring(0, eq));
                         if (b != null) b.Knob.Value = Parse(kv.Substring(eq + 1));
                     }
@@ -274,9 +333,10 @@ class MainForm : Form
         float boost = 0f;
         foreach (Band b in bands)
         {
-            state.Append(" " + b.Name + "=" + Fmt(b.Knob.Value));
-            boost = Math.Max(boost, b.Knob.Value);
+            state.Append(" " + b.Name + "=" + Fmt(b.Knob.Value)); // 隠れているつまみの値も覚えておく
+            if (IsActive(b)) boost = Math.Max(boost, b.Knob.Value);
         }
+        state.Append(threeMode ? " mode=3" : " mode=6");
         state.Append(on ? " on" : " off");
 
         StringBuilder sb = new StringBuilder();
@@ -292,6 +352,7 @@ class MainForm : Form
             for (int i = bands.Length - 1; i >= 0; i--)
             {
                 Band b = bands[i];
+                if (!IsActive(b)) continue; // 3 ノブモードでは隠れているつまみを効かせない
                 string line = "Filter: ON " + b.Filter + " Fc " + b.Freq + " Hz Gain " + Fmt(b.Knob.Value) + " dB";
                 if (b.Filter == "PK") line += " Q " + Fmt(b.Q);
                 sb.AppendLine(line);
