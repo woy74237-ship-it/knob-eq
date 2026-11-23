@@ -212,6 +212,18 @@ class Knob : Control
     protected override void OnMouseWheel(MouseEventArgs e) { Value = value + (e.Delta > 0 ? 0.5f : -0.5f); }
     protected override void OnDoubleClick(EventArgs e) { Value = 0f; } // ダブルクリックで 0 に戻す
 
+    // チューニングガイドが示す目安の範囲 (dB)
+    public bool HasHint;
+    public float HintLo, HintHi;
+    public void SetHint(bool on, float lo, float hi)
+    {
+        HasHint = on; HintLo = lo; HintHi = hi;
+        Invalidate();
+    }
+
+    // 値に対応するつまみの角度（真上が 0 度、時計回り。-135〜+135 度）
+    static float AngleOf(float v) { return -135f + 270f * (v - Min) / (Max - Min); }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         Graphics g = e.Graphics;
@@ -220,6 +232,20 @@ class Knob : Control
         float cx = Width / 2f, cy = Height / 2f, r = size / 2f;
         using (Pen p = new Pen(Theme.Ring, 3f))
             g.DrawEllipse(p, cx - r, cy - r, size, size);
+
+        // チューニングガイドの目安: 輪の上に、目安の範囲をアクセントカラーの太い弧で描く
+        if (HasHint)
+        {
+            float a0 = AngleOf(HintLo) - 90, a1 = AngleOf(HintHi) - 90; // DrawArc は 3 時の方向が 0 度
+            float sweep = Math.Max(a1 - a0, 10f);
+            if (a1 - a0 < 10f) a0 -= (10f - (a1 - a0)) / 2; // 範囲が 1 点のときも見えるよう 10 度は取る
+            using (Pen hp = new Pen(Theme.Accent, 7f))
+            {
+                hp.StartCap = hp.EndCap = LineCap.Round;
+                g.DrawArc(hp, cx - r, cy - r, size, size, a0, sweep);
+            }
+        }
+
         double t = (value - Min) / (Max - Min);
         double rad = (-135 + 270 * t) * Math.PI / 180.0;
         float rr = r * 0.70f, dot = Math.Max(8f, size * 0.13f);
@@ -227,6 +253,88 @@ class Knob : Control
         using (Brush b = new SolidBrush(Theme.Accent))
             g.FillEllipse(b, x - dot / 2, y - dot / 2, dot, dot);
     }
+}
+
+// チューニングガイドの 1 項目（「曇りを取りたい」など）
+class Recipe
+{
+    public string Title, Why, Tip6, Tip3;
+    public Adj[] Six, Three; // 6 ノブ / 3 ノブモードでの目安
+    public Adj[] For(bool three) { return three ? Three : Six; }
+    public string TipFor(bool three) { return three ? Tip3 : Tip6; }
+}
+
+// 1 つのつまみの目安（dB の範囲。当てはめるときは真ん中の値を使う）
+class Adj
+{
+    public string Band; public float Lo, Hi;
+    public Adj(string band, float lo, float hi) { Band = band; Lo = lo; Hi = hi; }
+    public float Mid { get { return (Lo + Hi) / 2; } }
+}
+
+static class Recipes
+{
+    static Adj A(string band, float lo, float hi) { return new Adj(band, lo, hi); }
+    static Adj A(string band, float v) { return new Adj(band, v, v); }
+
+    public static readonly Recipe[] All = new Recipe[] {
+        new Recipe {
+            Title = "曇りを取りたい",
+            Why = "こもって聞こえる原因の多くは 200〜500 Hz の出すぎです。ここを少し削ると、ベールが 1 枚はがれたように聞こえます。",
+            Six = new[] { A("Low-Mid", -4, -2), A("High-Mid", 1) },
+            Three = new[] { A("Bass", -1), A("Treble", 2) },
+            Tip6 = "まず Low-Mid だけを −2 から。削りすぎると今度は痩せた音になるので、こもりが消えたところで止めます。",
+            Tip3 = "Treble を少しずつ上げ、こもりが消えたところで止めます。Bass を下げすぎると痩せた音になります。" },
+        new Recipe {
+            Title = "華やかにしたい",
+            Why = "キラキラ感は 5 kHz より上にあります。ここを持ち上げると、シンバルや弦の響きが明るくなります。",
+            Six = new[] { A("Treble", 2, 4), A("High-Mid", 1) },
+            Three = new[] { A("Treble", 3), A("Mid", 1) },
+            Tip6 = "上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。",
+            Tip3 = "上げすぎると「サ行」が耳に刺さります。歌ものを聴きながら、刺さる手前で止めます。" },
+        new Recipe {
+            Title = "空気感を感じたい",
+            Why = "音の消え際やホールの響きは、10 kHz 以上のとても小さな成分です。高域をなだらかに持ち上げ、そのすぐ下を少し控えると、刺さらずに広がりが出ます。",
+            Six = new[] { A("Treble", 2, 3), A("High-Mid", -1) },
+            Three = new[] { A("Treble", 3), A("Mid", -1) },
+            Tip6 = "静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。",
+            Tip3 = "静かな曲やライブ録音で試すと分かりやすいです。耳が疲れたら Treble を 1 戻します。" },
+        new Recipe {
+            Title = "重低音の振動を感じたい",
+            Why = "体に響く「ズン」は 30〜60 Hz です。Sub を上げ、こもりの原因になる少し上の帯域は控えめにします。",
+            Six = new[] { A("Sub", 4, 6), A("Bass", 1, 2), A("Low-Mid", -1) },
+            Three = new[] { A("Bass", 4, 6) },
+            Tip6 = "ヘッドホンによっては 40 Hz がほとんど出ません。上げても変わらなければ、それ以上は上げないでください（音割れ防止のため全体の音量が下がるだけです）。",
+            Tip3 = "3 ノブの Bass はなだらかに効くので、最も低い帯域は 6 ノブの Sub ほど持ち上がりません。もっと欲しいときは 6 ノブモードを試してください。" },
+        new Recipe {
+            Title = "ボーカルを前に出したい",
+            Why = "声の聞き取りやすさは 1〜4 kHz で決まります。ここを少し上げ、声を覆う低い中域を控えます。",
+            Six = new[] { A("High-Mid", 2), A("Mid", 1), A("Low-Mid", -1) },
+            Three = new[] { A("Mid", 2) },
+            Tip6 = "上げるのは +2 まで。それ以上は耳障りになりやすいです。",
+            Tip3 = "上げるのは +2 まで。それ以上は耳障りになりやすいです。" },
+        new Recipe {
+            Title = "刺さる音をやわらげたい",
+            Why = "耳に刺さる・シャリシャリするのは、3〜8 kHz の出すぎです。ここを少し削ります。",
+            Six = new[] { A("High-Mid", -3, -2), A("Treble", -2, -1) },
+            Three = new[] { A("Treble", -2), A("Mid", -1) },
+            Tip6 = "削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。",
+            Tip3 = "削りすぎるとこもった音になります。長時間聴いて疲れないところが目安です。" },
+        new Recipe {
+            Title = "音に厚みがほしい",
+            Why = "音の太さや温かみは 100〜400 Hz にあります。ここを少し足すと、痩せた音に厚みが出ます。",
+            Six = new[] { A("Low-Mid", 2), A("Bass", 1) },
+            Three = new[] { A("Bass", 2), A("Mid", 1) },
+            Tip6 = "足しすぎると「曇り」になります。曇りを感じたら Low-Mid を戻します。",
+            Tip3 = "足しすぎると「曇り」になります。曇りを感じたら Bass を戻します。" },
+        new Recipe {
+            Title = "小さい音量でも迫力がほしい",
+            Why = "人の耳は、音量が小さいと低音と高音を感じにくくなります。両端を少し足すと、小音量でもバランスよく聞こえます。",
+            Six = new[] { A("Bass", 3), A("Treble", 2) },
+            Three = new[] { A("Bass", 3), A("Treble", 2) },
+            Tip6 = "大きな音量に戻したら、つまみも戻すのがおすすめです。",
+            Tip3 = "大きな音量に戻したら、つまみも戻すのがおすすめです。" },
+    };
 }
 
 // 1 つのつまみが担当するフィルター
@@ -239,6 +347,8 @@ class Band
     public float ActiveQ; // 今のモードで使う Q。シェルフで 0 なら Equalizer APO の標準の傾き
     public float Value6, Value3; // モードごとに覚えておく値 (dB)。つまみには今のモードの値を表示する
     public Knob Knob; public Label NameLabel, ValueLabel;
+    // 画面に出す名前（例: "Low-Mid  300"、"Treble  8k"）
+    public string DisplayName { get { return Name + "  " + (Freq >= 1000 ? (Freq / 1000) + "k" : Freq.ToString()); } }
     public Band(string name, string filter, int freq, float q, bool inThree, float threeQ = 0f)
     { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; ThreeQ = threeQ; ActiveQ = q; }
 }
@@ -252,6 +362,8 @@ class ResponseGraph : Control
     public Func<Band, bool> IsActive;
     public bool On = true;
     public Func<float> Preamp; // 自動で下げている全体の音量 (dB)。右上に表示する
+    // チューニングガイドの目安。つまみごとの目安の値を返す（目安が無いつまみは今の値のまま）。null なら描かない
+    public Func<Band, float> HintValue;
 
     public ResponseGraph()
     {
@@ -296,12 +408,16 @@ class ResponseGraph : Control
     }
 
     // 効いているつまみをすべて合わせたゲイン (dB)
-    double SumDb(double f)
+    double SumDb(double f) { return SumDb(f, null); }
+
+    // value が null なら今のつまみの値、あれば value が返す値で合計する
+    double SumDb(double f, Func<Band, float> value)
     {
         if (Bands == null) return 0;
         double sum = 0;
         foreach (Band b in Bands)
-            if (b.Knob != null && (IsActive == null || IsActive(b))) sum += BandDb(b, b.Knob.Value, f);
+            if (b.Knob != null && (IsActive == null || IsActive(b)))
+                sum += BandDb(b, value != null ? value(b) : b.Knob.Value, f);
         return sum;
     }
 
@@ -329,11 +445,14 @@ class ResponseGraph : Control
         // 周波数ごとのゲインを計算し、縦軸の範囲を決める（±12 dB を基本に、超えたら 6 dB 刻みで広げる）
         int n = (int)area.Width + 1;
         double[] db = new double[n];
+        double[] hint = HintValue != null ? new double[n] : null; // ガイドの目安どおりに回したときのカーブ
         double peak = 0;
         for (int i = 0; i < n; i++)
         {
-            db[i] = TotalDb(FMin * Math.Pow(FMax / FMin, i / (double)(n - 1)));
+            double f = FMin * Math.Pow(FMax / FMin, i / (double)(n - 1));
+            db[i] = TotalDb(f);
             peak = Math.Max(peak, Math.Abs(db[i]));
+            if (hint != null) { hint[i] = SumDb(f, HintValue); peak = Math.Max(peak, Math.Abs(hint[i])); }
         }
         double range = Math.Max(12, Math.Ceiling(peak / 6) * 6);
 
@@ -374,6 +493,18 @@ class ResponseGraph : Control
         }
         using (Pen cp = new Pen(On ? Theme.Accent : Theme.Ring, 2f)) g.DrawLines(cp, pts);
 
+        // ガイドの目安どおりに回したときのカーブを点線で重ねる
+        if (hint != null)
+        {
+            PointF[] hp = new PointF[n];
+            for (int i = 0; i < n; i++) hp[i] = new PointF(area.Left + i, Y(hint[i]));
+            using (Pen p = new Pen(Theme.Value, 1.5f))
+            {
+                p.DashPattern = new float[] { 4, 3 };
+                g.DrawLines(p, hp);
+            }
+        }
+
         // 自動で下げている全体の音量（プリアンプ）を右上に表示する。カーブと重なっても読めるよう下地を敷く
         if (On && Preamp != null)
             using (Font f = new Font("Segoe UI", 7.5f))
@@ -391,6 +522,210 @@ class ResponseGraph : Control
             using (Font f = new Font("Segoe UI", 9f, FontStyle.Bold))
             using (Brush b = new SolidBrush(Theme.Label))
                 g.DrawString("EQ OFF", f, b, area.Left + area.Width / 2, area.Top + 4, new StringFormat { Alignment = StringAlignment.Center });
+    }
+}
+
+// チューニングガイド: 目的を選ぶと、動かすつまみと目安を本体の画面に示す（本体の横に開く）
+class GuideForm : Form
+{
+    const int ListW = 170, RightX = 12 + ListW + 12, RightW = 320;
+    readonly MainForm main;
+    ListBox list;
+    Label title, why, section, adjust, caption, tip;
+    ResponseGraph mini;
+    Button apply, undo, ab;
+
+    public GuideForm(MainForm main)
+    {
+        this.main = main;
+        Text = "チューニングガイド";
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = MinimizeBox = false;
+        ShowInTaskbar = false;
+        ShowIcon = false;
+        StartPosition = FormStartPosition.Manual;
+        Font = new Font("Segoe UI", 9f);
+
+        Label head = NewLabel(12, 12, ListW, 10f, FontStyle.Bold);
+        head.Text = "どうしたい？";
+        head.Name = "head";
+
+        list = new ListBox();
+        list.Bounds = new Rectangle(12, 40, ListW, 8 * 30 + 4);
+        list.BorderStyle = BorderStyle.None;
+        list.DrawMode = DrawMode.OwnerDrawFixed;
+        list.ItemHeight = 30;
+        list.IntegralHeight = false;
+        foreach (Recipe r in Recipes.All) list.Items.Add(r);
+        list.DrawItem += DrawListItem;
+        list.SelectedIndexChanged += delegate { ShowRecipe(); };
+        Controls.Add(list);
+
+        title = NewLabel(RightX, 12, RightW, 12f, FontStyle.Bold);
+        why = NewLabel(RightX, 0, RightW, 9f, FontStyle.Regular);
+        section = NewLabel(RightX, 0, RightW, 8.5f, FontStyle.Regular);
+        adjust = NewLabel(RightX, 0, RightW, 10f, FontStyle.Bold);
+
+        mini = new ResponseGraph();
+        mini.Bands = main.Bands;
+        mini.IsActive = main.IsActive;
+        mini.HintValue = main.HintValue;
+        mini.Size = new Size(RightW, 110);
+        Controls.Add(mini);
+        caption = NewLabel(RightX, 0, RightW, 8f, FontStyle.Regular);
+        caption.Text = "実線: 今のカーブ　点線: 目安どおりに回したときのカーブ";
+        tip = NewLabel(RightX, 0, RightW, 9f, FontStyle.Regular);
+
+        apply = NewButton("目安を当てはめる", 128);
+        undo = NewButton("元に戻す", 84);
+        ab = NewButton("聴き比べ", 96);
+        ToolTip tips = new ToolTip();
+        tips.SetToolTip(apply, "目安の真ん中の値に、つまみをまとめて動かします");
+        tips.SetToolTip(undo, "「目安を当てはめる」を押す前の値に戻します");
+        tips.SetToolTip(ab, "EQ の ON / OFF を切り替えて、補正のありなしを聴き比べます");
+        apply.Click += delegate { Recipe r = Selected; if (r != null) main.ApplyRecipe(r); UpdateButtons(); };
+        undo.Click += delegate { main.UndoRecipe(); UpdateButtons(); };
+        ab.Click += delegate { main.ToggleEq(); };
+
+        list.SelectedIndex = 0;
+        ApplyTheme();
+    }
+
+    Recipe Selected { get { return list.SelectedItem as Recipe; } }
+
+    Label NewLabel(int x, int y, int w, float size, FontStyle style)
+    {
+        Label l = new Label();
+        l.Location = new Point(x, y);
+        l.Width = w;
+        l.Font = new Font("Segoe UI", size, style);
+        l.BackColor = Color.Transparent;
+        Controls.Add(l);
+        return l;
+    }
+
+    Button NewButton(string text, int w)
+    {
+        Button b = new Button();
+        b.Text = text;
+        b.FlatStyle = FlatStyle.Flat;
+        b.Size = new Size(w, 30);
+        Controls.Add(b);
+        return b;
+    }
+
+    // ラベルの高さを文章に合わせて決め、次に置く位置を返す
+    int Place(Label l, int y, int gapAfter)
+    {
+        l.Top = y;
+        l.Height = TextRenderer.MeasureText(l.Text, l.Font, new Size(l.Width, 0), TextFormatFlags.WordBreak).Height + 2;
+        return l.Bottom + gapAfter;
+    }
+
+    static string Db(float v)
+    {
+        string s = v.ToString("0.#", CultureInfo.InvariantCulture);
+        return v > 0 ? "+" + s : v < 0 ? "−" + s.Substring(1) : s;
+    }
+
+    // 選んだ目的の説明を、今のモード（3 / 6 ノブ）に合わせて表示し、本体のつまみとグラフに目安を示す
+    public void ShowRecipe()
+    {
+        Recipe r = Selected;
+        if (r == null) return;
+        bool three = main.ThreeMode;
+        title.Text = r.Title;
+        why.Text = r.Why;
+        section.Text = "動かすつまみ（" + (three ? "3" : "6") + " ノブ）";
+        StringBuilder sb = new StringBuilder();
+        foreach (Adj a in r.For(three))
+        {
+            Band b = main.FindBand(a.Band);
+            // 「−2 〜 −4」のように、小さく動かす側から書く
+            string range = a.Lo == a.Hi ? Db(a.Lo) : a.Hi <= 0 ? Db(a.Hi) + " 〜 " + Db(a.Lo) : Db(a.Lo) + " 〜 " + Db(a.Hi);
+            sb.AppendLine(b.DisplayName + "　" + range + " dB");
+        }
+        adjust.Text = sb.ToString().TrimEnd();
+        tip.Text = "コツ: " + r.TipFor(three);
+
+        SuspendLayout();
+        int y = Place(title, 12, 6);
+        y = Place(why, y, 10);
+        y = Place(section, y, 2);
+        y = Place(adjust, y, 10);
+        mini.Location = new Point(RightX, y);
+        y = Place(caption, mini.Bottom + 3, 10);
+        y = Place(tip, y, 14);
+        apply.Location = new Point(RightX, y);
+        undo.Location = new Point(apply.Right + 6, y);
+        ab.Location = new Point(undo.Right + 6, y);
+        ClientSize = new Size(RightX + RightW + 12, Math.Max(ab.Bottom, list.Bottom) + 14);
+        ResumeLayout();
+
+        main.ShowHint(r);
+        mini.Invalidate();
+        UpdateButtons();
+        FollowMain();
+    }
+
+    public void UpdateButtons() { undo.Enabled = main.CanUndoRecipe; mini.Invalidate(); }
+
+    // 本体の右隣に置く。右に入りきらなければ左隣に置く
+    public void FollowMain()
+    {
+        Rectangle area = Screen.FromControl(main).WorkingArea;
+        int x = main.Right + 6;
+        if (x + Width > area.Right) x = Math.Max(area.Left, main.Left - 6 - Width);
+        int y = Math.Max(area.Top, Math.Min(main.Top, area.Bottom - Height));
+        Location = new Point(x, y);
+    }
+
+    void DrawListItem(object sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0) return;
+        bool sel = (e.State & DrawItemState.Selected) != 0;
+        using (Brush bg = new SolidBrush(sel ? Theme.Panel : Theme.Bg)) e.Graphics.FillRectangle(bg, e.Bounds);
+        if (sel) using (Brush bar = new SolidBrush(Theme.Accent)) e.Graphics.FillRectangle(bar, e.Bounds.Left, e.Bounds.Top + 4, 3, e.Bounds.Height - 8);
+        TextRenderer.DrawText(e.Graphics, ((Recipe)list.Items[e.Index]).Title, list.Font,
+            new Rectangle(e.Bounds.Left + 10, e.Bounds.Top, e.Bounds.Width - 10, e.Bounds.Height),
+            sel ? Theme.Value : Theme.Label, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+    }
+
+    public void ApplyTheme()
+    {
+        BackColor = Theme.Bg;
+        list.BackColor = Theme.Bg;
+        foreach (Control c in Controls)
+        {
+            Label l = c as Label;
+            if (l != null) l.ForeColor = Theme.Label;
+        }
+        title.ForeColor = Theme.Value;
+        Controls["head"].ForeColor = Theme.Value;
+        adjust.ForeColor = Theme.Accent;
+        foreach (Button b in new[] { apply, undo, ab })
+        {
+            bool primary = b == apply;
+            b.BackColor = primary ? Theme.Accent : Theme.Bg;
+            b.ForeColor = primary ? Theme.OnAccent : Theme.Label;
+            b.FlatAppearance.BorderColor = primary ? Theme.Accent : Theme.Ring;
+            b.FlatAppearance.MouseOverBackColor = primary ? Theme.Accent : Theme.Panel;
+        }
+        if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
+        list.Invalidate();
+        mini.Invalidate();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Theme.ApplyTitleBar(Handle);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        main.ShowHint(null);
+        base.OnFormClosed(e);
     }
 }
 
@@ -476,8 +811,7 @@ class MainForm : Form
             b.Knob.Size = new Size(KnobSize, KnobSize);
             Controls.Add(b.Knob);
 
-            string freq = b.Freq >= 1000 ? (b.Freq / 1000) + "k" : b.Freq.ToString();
-            b.NameLabel = AddLabel(b.Name + "  " + freq, 0, 0, 105, 10f, FontStyle.Regular, ContentAlignment.MiddleCenter);
+            b.NameLabel = AddLabel(b.DisplayName, 0, 0, 105, 10f, FontStyle.Regular, ContentAlignment.MiddleCenter);
             b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ContentAlignment.MiddleCenter);
 
             tip.SetToolTip(b.Knob, "上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB");
@@ -496,6 +830,13 @@ class MainForm : Form
         onBox.AutoSize = true;
         onBox.CheckedChanged += delegate { graph.On = onBox.Checked; graph.Invalidate(); ScheduleSave(); };
         Controls.Add(onBox);
+
+        // チューニングガイドを開く／閉じる
+        hintBtn = AddButton("ヒント", 0, 0, 56, 28);
+        tip.SetToolTip(hintBtn, "目的に合わせたチューニングのヒント");
+        hintBtn.Click += delegate { ToggleGuide(); };
+        LocationChanged += delegate { if (guide != null) guide.FollowMain(); };
+        SizeChanged += delegate { if (guide != null) guide.FollowMain(); };
 
         reset = AddButton("Reset", 0, 0, 75, 28);
         // 今のモードのつまみをすべて 0 に戻す（もう一方のモードの値は変えない）
@@ -555,13 +896,16 @@ class MainForm : Form
         onBox.ForeColor = Theme.Label;
         warnLabel.BackColor = Theme.WarnBg;
         warnLabel.ForeColor = Theme.WarnText;
-        foreach (Button btn in new Button[] { layoutBtn, mode3Btn, mode6Btn, reset })
+        foreach (Button btn in new Button[] { layoutBtn, mode3Btn, mode6Btn, hintBtn, reset })
         {
             btn.FlatAppearance.BorderColor = Theme.Ring;
             btn.FlatAppearance.MouseOverBackColor = Theme.Panel;
         }
         StyleModeButton(reset, false);
         StyleModeButton(layoutBtn, false);
+        StyleModeButton(hintBtn, guide != null);
+        if (guide != null) guide.ApplyTheme();
+        if (hintRecipe != null) ShowHint(hintRecipe); // ガイドで光らせているつまみの名前を塗り直す
         StyleModeButton(mode3Btn, threeMode);
         StyleModeButton(mode6Btn, !threeMode);
         graph.Invalidate();
@@ -600,7 +944,85 @@ class MainForm : Form
         catch (Exception ex) { MessageBox.Show("設定画面を開けませんでした:\n" + ex.Message, Text); }
     }
 
-    bool IsActive(Band b) { return !threeMode || b.InThree; }
+    public bool IsActive(Band b) { return !threeMode || b.InThree; }
+
+    // ---- チューニングガイドとのやりとり ----
+    GuideForm guide;
+    Button hintBtn;
+    Recipe hintRecipe;      // ガイドで選んでいる目的（ガイドを閉じると null）
+    float[] undoValues;     // 「目安を当てはめる」前のつまみの値（「元に戻す」用）
+    bool undoThree;         // 上の値を覚えたときのモード
+
+    public Band[] Bands { get { return bands; } }
+    public bool ThreeMode { get { return threeMode; } }
+    public Band FindBand(string name) { return Find(name); }
+    public bool CanUndoRecipe { get { return undoValues != null && undoThree == threeMode; } }
+
+    void ToggleGuide()
+    {
+        if (guide != null) { guide.Close(); return; }
+        guide = new GuideForm(this);
+        guide.FormClosed += delegate { guide = null; StyleModeButton(hintBtn, false); };
+        guide.Show(this); // 本体に従うウィンドウとして開く（本体を閉じると一緒に閉じる）
+        guide.FollowMain();
+        StyleModeButton(hintBtn, true);
+    }
+
+    // 今のモードでのその目的の目安。目安が無いつまみは null
+    Adj HintFor(Band b)
+    {
+        if (hintRecipe == null || !IsActive(b)) return null;
+        foreach (Adj a in hintRecipe.For(threeMode)) if (a.Band == b.Name) return a;
+        return null;
+    }
+
+    // グラフの点線用: 目安どおりに回したときの値（目安が無いつまみは今の値）
+    public float HintValue(Band b)
+    {
+        Adj a = HintFor(b);
+        return a != null ? a.Mid : b.Knob.Value;
+    }
+
+    // 目安のあるつまみを光らせ、グラフに目安のカーブを重ねる。null で消す
+    public void ShowHint(Recipe r)
+    {
+        hintRecipe = r;
+        foreach (Band b in bands)
+        {
+            Adj a = HintFor(b);
+            b.Knob.SetHint(a != null, a != null ? a.Lo : 0, a != null ? a.Hi : 0);
+            // アクセントカラーがグレーに近い設定でも分かるよう、色に加えて太字にする
+            b.NameLabel.ForeColor = a != null ? Theme.Accent : Theme.Label;
+            b.NameLabel.Font = new Font(b.NameLabel.Font, a != null ? FontStyle.Bold : FontStyle.Regular);
+        }
+        graph.HintValue = r != null ? (Func<Band, float>)HintValue : null;
+        graph.Invalidate();
+    }
+
+    // 目安の真ん中の値につまみを動かす。最初の 1 回だけ、動かす前の値を覚えておく
+    public void ApplyRecipe(Recipe r)
+    {
+        if (!CanUndoRecipe)
+        {
+            undoValues = new float[bands.Length];
+            for (int i = 0; i < bands.Length; i++) undoValues[i] = bands[i].Knob.Value;
+            undoThree = threeMode;
+        }
+        foreach (Band b in bands)
+        {
+            if (!IsActive(b)) continue;
+            foreach (Adj a in r.For(threeMode)) if (a.Band == b.Name) b.Knob.Value = a.Mid;
+        }
+    }
+
+    public void UndoRecipe()
+    {
+        if (!CanUndoRecipe) return;
+        for (int i = 0; i < bands.Length; i++) if (IsActive(bands[i])) bands[i].Knob.Value = undoValues[i];
+        undoValues = null;
+    }
+
+    public void ToggleEq() { onBox.Checked = !onBox.Checked; }
 
     void SetMode(bool three)
     {
@@ -608,6 +1030,7 @@ class MainForm : Form
         threeMode = three;
         ShowModeValues();
         DoLayout();
+        if (guide != null) guide.ShowRecipe(); // ガイドの目安も今のモード用に出し直す
         ScheduleSave();
     }
 
@@ -674,6 +1097,7 @@ class MainForm : Form
         int bottom = knobTop + rows * Step;
         onBox.Location = new Point(20, bottom + 12);
         reset.Location = new Point(width - 95, bottom + 7);
+        hintBtn.Location = new Point(reset.Left - hintBtn.Width - 6, bottom + 7);
         ClientSize = new Size(width, bottom + 50);
         KeepOnScreen();
 
@@ -735,6 +1159,7 @@ class MainForm : Form
     {
         foreach (Band b in bands) b.ValueLabel.Text = Fmt(b.Knob.Value);
         if (graph != null) graph.Invalidate();
+        if (guide != null) guide.UpdateButtons();
     }
 
     void ScheduleSave() { if (loading) return; saveTimer.Stop(); saveTimer.Start(); }
