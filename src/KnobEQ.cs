@@ -7,8 +7,18 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+
+// exe のプロパティに出る情報。配布用 ZIP の名前（package.ps1）も AssemblyInformationalVersion から決まる
+[assembly: AssemblyTitle("KnobEQ")]
+[assembly: AssemblyProduct("KnobEQ")]
+[assembly: AssemblyDescription("Equalizer APO 用のつまみ式イコライザ")]
+[assembly: AssemblyCopyright("© 2026 Walt-Owen")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyInformationalVersion("1.0.0")]
 
 // Windows のライト／ダークモードとアクセントカラーに合わせた配色
 static class Theme
@@ -39,7 +49,12 @@ static class Theme
             WarnBg = Rgb(0xFF, 0xF4, 0xCE); WarnText = Rgb(0x1A, 0x1A, 0x1A);
         }
         // アクセントカラーは、ダークでは明るめ、ライトでは暗めの色を使う（Windows 11 と同じ使い分け）
-        Accent = ReadAccent(Dark ? 1 : 4, Dark ? Rgb(0x4C, 0xC2, 0xFF) : Rgb(0x00, 0x5F, 0xB8));
+        Color defaultAccent = Dark ? Rgb(0x4C, 0xC2, 0xFF) : Rgb(0x00, 0x5F, 0xB8);
+        Accent = ReadAccent(Dark ? 1 : 4, defaultAccent);
+#if UI_TEST
+        // 見た目確認用のビルドだけ、Windows の既定の青に固定できる（紹介用の画面写真を撮るとき用）
+        if (Environment.GetEnvironmentVariable("KNOBEQ_ACCENT") == "default") Accent = defaultAccent;
+#endif
     }
 
     static Color Rgb(int r, int g, int b) { return Color.FromArgb(r, g, b); }
@@ -134,8 +149,8 @@ static class AudioCheck
 #if UI_TEST
         // 見た目確認用のビルドだけ、環境変数で注意バーの状態を強制できる
         string force = Environment.GetEnvironmentVariable("KNOBEQ_WARN");
-        if (force == "off") { deviceName = "Test Headphones"; return Status.EnhancementsOff; }
-        if (force == "noapo") { deviceName = "Test Speakers"; return Status.NoApo; }
+        if (force == "off") { deviceName = "Headphones"; return Status.EnhancementsOff; }
+        if (force == "noapo") { deviceName = "Speakers"; return Status.NoApo; }
 #endif
         string id = DefaultRenderId();
         if (id == null) return Status.Unknown;

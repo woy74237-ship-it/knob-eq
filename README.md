@@ -1,7 +1,19 @@
 # KnobEQ
 
-Windows 全体の音に効く、つまみだけのシンプルな 6 バンドイコライザです。
+つまみを回すだけで、Windows 全体の音を好みに調整できるイコライザです（3 ノブ / 6 ノブ）。
+「曇りを取りたい」「重低音の振動を感じたい」のような目的から選べる、チューニングガイド付き。
 [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) の設定ファイルを書き換えることで動作します。
+
+A simple knob-style equalizer for Windows, powered by Equalizer APO.
+
+![KnobEQ の画面](site/images/main.png)
+
+## ダウンロード
+
+**[紹介ページ](https://woy74237-ship-it.github.io/knob-eq/)** または **[Releases](https://github.com/woy74237-ship-it/knob-eq/releases/latest)** から ZIP をダウンロードし、展開した `KnobEQ.exe` を起動します。
+インストールは不要です。
+
+初回起動時に「Windows によって PC が保護されました」と表示されたら、「詳細情報」→「実行」で起動できます（署名のない個人製アプリで表示される確認画面です）。
 
 ## 必要なもの
 

@@ -8,7 +8,7 @@ Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force bin | Out-Null
 # /win32icon は exe のアイコン（エクスプローラーやタスクバー）、/resource はウィンドウのタイトルバー用
 & $csc /nologo /codepage:65001 /target:winexe /optimize+ /out:bin\KnobEQ.exe `
-    /win32icon:src\KnobEQ.ico /resource:src\KnobEQ.ico,KnobEQ.ico `
+    /win32icon:src\KnobEQ.ico /win32manifest:src\app.manifest /resource:src\KnobEQ.ico,KnobEQ.ico `
     /r:System.Windows.Forms.dll /r:System.Drawing.dll src\KnobEQ.cs
 if ($LASTEXITCODE -ne 0) { throw "ビルドに失敗しました" }
 Write-Host "ビルド完了: bin\KnobEQ.exe"

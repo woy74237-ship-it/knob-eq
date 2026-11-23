@@ -2,3 +2,7 @@ bin/
 obj/
 *.exe
 *.pdb
+*.tmp
+dist/
+promo/
+docs/images/

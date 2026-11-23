@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KnobEQ｜つまみを回すだけの Windows 用イコライザ（Equalizer APO 対応・無料）</title>
+<meta name="description" content="つまみを回すだけで、Windows 全体の音を好みに調整できる無料のイコライザ。Equalizer APO と組み合わせて使います。「曇りを取りたい」「重低音の振動を感じたい」など、目的から選べるチューニングガイド付き。3 ノブ / 6 ノブ、補正カーブの表示、音割れを防ぐ自動プリアンプ。Windows 10 / 11、インストール不要。">
+<link rel="canonical" href="https://woy74237-ship-it.github.io/knob-eq/">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<meta name="theme-color" content="#1f2933">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Walt-Owen">
+<meta property="og:title" content="KnobEQ｜つまみを回すだけの Windows 用イコライザ">
+<meta property="og:description" content="つまみを回すだけで、Windows の音を好みに。目的から選べるチューニングガイド付き。Equalizer APO 対応・無料・インストール不要。">
+<meta property="og:url" content="https://woy74237-ship-it.github.io/knob-eq/">
+<meta property="og:image" content="https://woy74237-ship-it.github.io/knob-eq/images/ogp.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "KnobEQ",
+  "description": "つまみを回すだけで Windows 全体の音を調整できる、Equalizer APO 用のイコライザ。",
+  "operatingSystem": "Windows 10, Windows 11",
+  "applicationCategory": "MultimediaApplication",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
+  "downloadUrl": "https://github.com/woy74237-ship-it/knob-eq/releases/latest",
+  "image": "https://woy74237-ship-it.github.io/knob-eq/images/icon-256.png",
+  "screenshot": "https://woy74237-ship-it.github.io/knob-eq/images/main.png",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": { "@type": "Person", "name": "Walt-Owen" }
+}
+</script>
+
+<style>
+  :root {
+    --bg: #f3f5f7;
+    --surface: #ffffff;
+    --border: #e0e5ea;
+    --text: #17202a;
+    --text-dim: #56616c;
+    --accent: #005fb8;
+    --on-accent: #ffffff;
+    --shadow: 0 10px 30px rgba(23, 32, 42, .10);
+    --night: #1f2933;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161c22;
+      --surface: #1f2933;
+      --border: #2f3b47;
+      --text: #f0f3f5;
+      --text-dim: #b3bec7;
+      --accent: #4cc2ff;
+      --on-accent: #0b1218;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  img { max-width: 100%; height: auto; display: block; }
+  code { font-family: Consolas, "BIZ UDGothic", monospace; font-size: .92em; }
+  .wrap { width: min(1080px, 100% - 32px); margin: 0 auto; }
+
+  /* ヘッダー */
+  .site-header { position: absolute; inset: 0 0 auto 0; z-index: 2; }
+  .site-header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 700; }
+  .brand img { width: 32px; height: 32px; }
+  .site-nav { display: flex; gap: 20px; }
+  .site-nav a { color: rgba(255, 255, 255, .92); text-decoration: none; font-size: 14px; }
+  .site-nav a:hover { color: #fff; text-decoration: underline; }
+  @media (max-width: 640px) { .site-nav { display: none; } }
+
+  /* ヒーロー */
+  .hero {
+    position: relative; color: #fff; text-align: center;
+    background: radial-gradient(ellipse at 70% 20%, #2c4a5e 0%, transparent 55%), linear-gradient(160deg, #1f2933, #121a21);
+    padding: 120px 0 180px;
+  }
+  .hero .wrap { position: relative; z-index: 1; }
+  .eyebrow { display: inline-block; padding: 4px 14px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: 14px; letter-spacing: .04em; }
+  .hero h1 { margin: 18px 0 12px; font-size: clamp(32px, 6vw, 56px); line-height: 1.25; letter-spacing: .02em; }
+  .hero .lead { margin: 0 auto 32px; max-width: 640px; font-size: clamp(16px, 2.4vw, 19px); color: rgba(255, 255, 255, .92); }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 17px; text-decoration: none;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: #4cc2ff; color: #0b1218; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+  .btn-primary:hover { background: #7ad3ff; }
+  .btn-ghost { color: #fff; border: 1.5px solid rgba(255, 255, 255, .7); }
+  .btn-ghost:hover { background: rgba(255, 255, 255, .12); }
+  .meta { margin-top: 14px; font-size: 14px; color: rgba(255, 255, 255, .85); }
+  .meta span { white-space: nowrap; }
+
+  /* スクリーンショット */
+  .showcase { margin-top: -130px; position: relative; z-index: 1; }
+  .showcase img { margin: 0 auto; width: min(760px, 100%); border-radius: 10px; box-shadow: 0 24px 60px rgba(0, 0, 0, .45); }
+
+  /* セクション共通 */
+  section { padding: 80px 0 0; }
+  h2 { font-size: clamp(24px, 4vw, 32px); text-align: center; margin: 0 0 12px; }
+  .section-lead { text-align: center; color: var(--text-dim); margin: 0 auto 40px; max-width: 660px; }
+
+  /* 目的のチップ */
+  .goals { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 820px; margin: 0 auto; }
+  .goal { padding: 10px 18px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-weight: 700; box-shadow: var(--shadow); }
+  .goal small { display: block; font-weight: 400; font-size: 13px; color: var(--text-dim); text-align: center; }
+
+  /* 特長 */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 18px; }
+  .feature .icon { font-size: 28px; line-height: 1; }
+  .feature h3 { margin: 12px 0 6px; font-size: 18px; }
+  .feature p { margin: 0; color: var(--text-dim); font-size: 15px; }
+  @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+
+  /* 画像と説明を左右に並べる */
+  .split { display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; }
+  .split.reverse > :first-child { order: 2; }
+  .split h3 { margin: 0 0 10px; font-size: 22px; }
+  .split p { margin: 0 0 12px; color: var(--text-dim); }
+  .split ul { margin: 0 0 12px; padding-left: 1.2em; color: var(--text-dim); }
+  .split img { border-radius: 10px; box-shadow: var(--shadow); }
+  .split img.narrow { width: min(260px, 100%); margin: 0 auto; }
+  .split + .split { margin-top: 56px; }
+  .wide-shot { margin: 0 auto 28px; border-radius: 10px; box-shadow: var(--shadow); }
+  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } .split.reverse > :first-child { order: 0; } }
+
+  /* 使い方 */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps li { counter-increment: step; position: relative; padding: 0 0 22px 56px; }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 0;
+    width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent); color: var(--on-accent); font-weight: 700;
+  }
+  .steps h3 { margin: 4px 0 4px; font-size: 18px; }
+  .steps p { margin: 0; color: var(--text-dim); font-size: 15px; }
+
+  /* よくある質問 */
+  .faq { max-width: 760px; margin: 0 auto; }
+  .faq details { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 20px; margin-bottom: 12px; }
+  .faq summary { cursor: pointer; font-weight: 700; padding: 14px 28px 14px 0; list-style: none; position: relative; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "＋"; position: absolute; right: 0; top: 14px; color: var(--text-dim); }
+  .faq details[open] summary::after { content: "－"; }
+  .faq details p { margin: 0 0 16px; color: var(--text-dim); }
+
+  /* リンク・応援 */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px; text-decoration: none; color: var(--text); transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .card .kicker { font-size: 13px; color: var(--accent); font-weight: 700; }
+  .card .title { display: block; margin-top: 6px; font-weight: 700; }
+  .card .desc { display: block; margin-top: 6px; font-size: 14px; color: var(--text-dim); }
+  @media (max-width: 820px) { .cards { grid-template-columns: 1fr; } }
+
+  .support {
+    margin: 80px auto 0; text-align: center; color: #fff; border-radius: 20px; padding: 48px 24px;
+    background: radial-gradient(ellipse at 70% 20%, #2c4a5e 0%, transparent 55%), linear-gradient(160deg, #1f2933, #121a21);
+  }
+  .support h2 { color: #fff; }
+  .support p { margin: 0 auto 24px; max-width: 560px; color: rgba(255, 255, 255, .9); }
+
+  footer { padding: 48px 0 40px; text-align: center; color: var(--text-dim); font-size: 14px; }
+  footer a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="images/icon-256.png" alt="" width="32" height="32">KnobEQ</a>
+    <nav class="site-nav" aria-label="ページ内リンク">
+      <a href="#guide">チューニングガイド</a>
+      <a href="#features">特長</a>
+      <a href="#howto">使い方</a>
+      <a href="#faq">よくある質問</a>
+      <a href="https://github.com/woy74237-ship-it/knob-eq">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="title">
+    <div class="wrap">
+      <span class="eyebrow">Windows 用フリーソフト ・ Equalizer APO 対応</span>
+      <h1 id="title">つまみを回すだけで、<br>Windows の音を好みに。</h1>
+      <p class="lead">低音をもう少し、こもりを取りたい、声をはっきり。Windows 全体の音を、つまみ 3 つ（または 6 つ）で直感的に調整できる無料のイコライザです。</p>
+      <div class="cta">
+        <a class="btn btn-primary" data-download href="https://github.com/woy74237-ship-it/knob-eq/releases/latest">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1ZM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z"/></svg>
+          無料ダウンロード
+        </a>
+        <a class="btn btn-ghost" href="#howto">使い方を見る</a>
+      </div>
+      <p class="meta"><span data-version>最新版</span> ・ <span>Windows 10 / 11</span> ・ <span>インストール不要</span></p>
+    </div>
+  </section>
+
+  <div class="showcase wrap">
+    <img src="images/main.png" width="678" height="479" alt="KnobEQ の画面。上に補正カーブのグラフ、その下に Sub・Bass・Low-Mid・Mid・High-Mid・Treble の 6 つのつまみが並んでいる">
+  </div>
+
+  <section id="guide" aria-labelledby="guide-title">
+    <div class="wrap">
+      <h2 id="guide-title">「どうしたい？」から選べる、チューニングガイド</h2>
+      <p class="section-lead">イコライザは「どこを、どれだけ」が分かりにくい道具です。KnobEQ なら、ふだんの言葉で目的を選ぶだけで、回すつまみと目安を画面の上で案内します。</p>
+      <div class="goals">
+        <span class="goal">曇りを取りたい</span>
+        <span class="goal">華やかにしたい</span>
+        <span class="goal">空気感を感じたい</span>
+        <span class="goal">重低音の振動を感じたい</span>
+        <span class="goal">ボーカルを前に出したい</span>
+        <span class="goal">刺さる音をやわらげたい</span>
+        <span class="goal">音に厚みがほしい</span>
+        <span class="goal">小さい音量でも迫力がほしい</span>
+      </div>
+      <div style="margin-top: 40px;">
+        <img class="wide-shot" src="images/guide.png" width="1234" height="479" alt="チューニングガイドの画面。「曇りを取りたい」を選ぶと、本体の Low-Mid と High-Mid のつまみが光り、目安どおりに回したときのカーブがグラフに点線で表示される" loading="lazy">
+        <p class="section-lead" style="margin-bottom: 0;">目安のあるつまみが光り、目安どおりに回したときのカーブがグラフに点線で重なります。「目安を当てはめる」で一発設定、「元に戻す」でいつでも元どおり。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">特長</h2>
+      <p class="section-lead">難しい数値の入力はいりません。つまみを回して、耳で決めるだけ。</p>
+      <div class="features">
+        <div class="feature">
+          <div class="icon" aria-hidden="true">🎛️</div>
+          <h3>つまみを回すだけ</h3>
+          <p>上下ドラッグかマウスホイールで回すと、その場で音が変わります。ダブルクリックで 0 に戻ります。</p>
+        </div>
+        <div class="feature">
+          <div class="icon" aria-hidden="true">🧭</div>
+          <h3>目的から選べるガイド</h3>
+          <p>「曇りを取りたい」などの目的を選ぶと、回すつまみと目安を画面の上で案内します。</p>
+        </div>
+        <div class="feature">
+          <div class="icon" aria-hidden="true">3️⃣</div>
+          <h3>3 ノブ / 6 ノブ</h3>
+          <p>手軽な 3 ノブ（低音・中音・高音）と、細かく決められる 6 ノブを切り替えられます。</p>
+        </div>
+        <div class="feature">
+          <div class="icon" aria-hidden="true">📈</div>
+          <h3>補正カーブが見える</h3>
+          <p>今のつまみで、どの音がどれだけ変わるかをグラフで確認できます。</p>
+        </div>
+        <div class="feature">
+          <div class="icon" aria-hidden="true">🔇</div>
+          <h3>音割れを自動で防ぐ</h3>
+          <p>持ち上げた分だけ全体の音量を自動で下げて、音割れを防ぎます（Preamp）。</p>
+        </div>
+        <div class="feature">
+          <div class="icon" aria-hidden="true">🩺</div>
+          <h3>効かない原因を教えてくれる</h3>
+          <p>Windows の設定などで EQ が効かない状態のときは、原因と直し方を画面に表示します。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="detail-title">
+    <div class="wrap">
+      <h2 id="detail-title">こだわりのポイント</h2>
+      <p class="section-lead">毎日の音楽や動画が、少しだけ楽しくなるように。</p>
+
+      <div class="split">
+        <div>
+          <h3>3 つのつまみで、ざっくり好みに</h3>
+          <p>3 ノブモードは、オーディオアンプのトーンつまみのような、低音・中音・高音の 3 つだけ。なだらかに効くように調整してあるので、大きく回しても自然に聞こえます。</p>
+          <p>もっと細かく決めたくなったら、6 ノブモードへ。モードごとに値を覚えているので、行き来しても設定は消えません。</p>
+          <p>縦長・横長のレイアウトも切り替えられます。</p>
+        </div>
+        <img class="narrow" src="images/three.png" width="246" height="584" alt="3 ノブモードの縦レイアウト。Treble・Mid・Bass の 3 つのつまみが縦に並んでいる" loading="lazy">
+      </div>
+
+      <div class="split reverse">
+        <div>
+          <h3>「効かない」で迷わない</h3>
+          <p>イコライザが効かない原因で多いのが、Windows の「オーディオの機能強化」がオフになっていること。KnobEQ は今の出力先の状態を調べて、EQ が効かないときは原因を表示します。</p>
+          <p>表示をクリックすると、直すための設定画面がそのまま開きます。</p>
+        </div>
+        <img src="images/warning.png" width="678" height="424" alt="「オーディオの機能強化」がオフのため EQ が効いていない、という注意がグラフの上に表示されている" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section id="howto" aria-labelledby="howto-title">
+    <div class="wrap">
+      <h2 id="howto-title">使い方は 3 ステップ</h2>
+      <p class="section-lead">KnobEQ は、定番の無料ソフト「Equalizer APO」と組み合わせて動きます。</p>
+      <div style="max-width: 680px; margin: 0 auto;">
+        <ol class="steps">
+          <li>
+            <h3>Equalizer APO をインストール</h3>
+            <p><a href="https://sourceforge.net/projects/equalizerapo/">Equalizer APO</a>（無料）をインストールし、途中の Configurator でふだん使うヘッドホンやスピーカーにチェックを入れます。</p>
+          </li>
+          <li>
+            <h3>KnobEQ をダウンロードして起動</h3>
+            <p>ZIP を右クリック →「すべて展開」し、<code>KnobEQ.exe</code> をダブルクリックします。</p>
+          </li>
+          <li>
+            <h3>つまみを回す</h3>
+            <p>回すとすぐに音が変わります。迷ったら「ヒント」から目的を選んでください。アプリを閉じても、設定した音のまま効き続けます。</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <h2 id="faq-title">よくある質問</h2>
+      <div class="faq">
+        <details>
+          <summary>「Windows によって PC が保護されました」と表示されます</summary>
+          <p>個人が作った、まだ利用者の少ないアプリに表示される確認画面です。ウイルスが見つかったという意味ではありません。「詳細情報」を押してから「実行」を押すと起動できます。ソースコードは GitHub で公開しています。</p>
+        </details>
+        <details>
+          <summary>Equalizer APO は必要ですか？</summary>
+          <p>はい。KnobEQ は、Equalizer APO の設定ファイルを書き換えることで音を変えています。Equalizer APO は、Windows 全体の音にイコライザをかけられる定番の無料ソフトです。</p>
+        </details>
+        <details>
+          <summary>Peace と一緒に使えますか？</summary>
+          <p>はい。KnobEQ は自分専用の設定ファイル（knobeq.txt）を作り、Equalizer APO の config.txt にその読み込みを 1 行追加するだけです。Peace などのほかのソフトの設定には触れないので、ヘッドホンの補正は Peace、好みの味付けは KnobEQ、のように重ねて使えます。</p>
+        </details>
+        <details>
+          <summary>つまみを回しても音が変わりません</summary>
+          <p>画面に注意が表示されていれば、その内容に従ってください（クリックすると設定画面が開きます）。多いのは、Windows の「設定 → システム → サウンド」で出力先の「オーディオの機能強化」がオフになっている場合と、使っている出力先に Equalizer APO が入っていない場合です。音楽アプリが「排他モード」で再生しているときも EQ はかかりません。</p>
+        </details>
+        <details>
+          <summary>音量が小さくなった気がします</summary>
+          <p>つまみで音を持ち上げると、音割れを防ぐために、その分だけ全体の音量を自動で下げています（グラフ右上の Preamp）。Windows の音量を少し上げてください。</p>
+        </details>
+        <details>
+          <summary>料金はかかりますか？</summary>
+          <p>無料です。広告もありません。MIT ライセンスで公開しているオープンソースのソフトです。インターネットへの通信も行いません。</p>
+        </details>
+        <details>
+          <summary>対応している Windows は？</summary>
+          <p>Windows 10 と Windows 11 です。動作に必要な .NET Framework 4.x は Windows に標準で入っているため、追加のインストールは不要です。</p>
+        </details>
+        <details>
+          <summary>やめるとき（アンインストール）は？</summary>
+          <p>Equalizer APO の config.txt から <code>Include: knobeq.txt</code> の行を削除し、同じフォルダーの knobeq.txt と、展開した KnobEQ のフォルダーを削除してください。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="more-title">
+    <div class="wrap">
+      <h2 id="more-title">もっと知る</h2>
+      <p class="section-lead">ソースコードや、ほかのアプリはこちら。</p>
+      <div class="cards">
+        <a class="card" href="https://github.com/woy74237-ship-it/knob-eq">
+          <span class="kicker">GitHub</span>
+          <span class="title">ソースコード</span>
+          <span class="desc">MIT ライセンスで公開中。要望は Issues へ。</span>
+        </a>
+        <a class="card" href="https://woy74237-ship-it.github.io/wallpaper-scheduler/">
+          <span class="kicker">姉妹アプリ</span>
+          <span class="title">壁紙スケジューラ</span>
+          <span class="desc">時刻で Windows の壁紙を自動で切り替える無料アプリ。</span>
+        </a>
+        <a class="card" href="https://woy74237-ship-it.github.io/brightness-scheduler/">
+          <span class="kicker">姉妹アプリ</span>
+          <span class="title">輝度スケジューラ</span>
+          <span class="desc">時刻でディスプレイの明るさを自動で変える無料アプリ。</span>
+        </a>
+      </div>
+
+      <div class="support">
+        <h2>開発を応援する</h2>
+        <p>気に入っていただけたら、応援していただけると開発の励みになります。いただいた応援は、新しい機能の開発に使わせていただきます。</p>
+        <a class="btn btn-primary" href="https://ofuse.me/c0fdccc4">♥ OFUSE で応援する</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    © 2026 <a href="https://woy74237-ship-it.github.io/">Walt-Owen</a> ・ <a href="https://github.com/woy74237-ship-it/knob-eq/blob/main/LICENSE">MIT License</a>
+  </div>
+</footer>
+
+<script>
+  // 最新リリースの情報を取得し、ダウンロードボタンを ZIP への直接リンクにする（失敗したらリリースページのまま）
+  fetch("https://api.github.com/repos/woy74237-ship-it/knob-eq/releases/latest")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (rel) {
+      if (!rel) return;
+      var m = (rel.name || "").match(/v\d+(\.\d+)+/) || (rel.tag_name || "").match(/v\d+(\.\d+)*/);
+      var zip = (rel.assets || []).filter(function (a) { return /\.zip$/i.test(a.name); })[0];
+      if (m) document.querySelectorAll("[data-version]").forEach(function (e) {
+        e.textContent = "最新版 " + m[0] + (zip ? "（" + Math.round(zip.size / 1024) + " KB）" : "");
+      });
+      if (zip) document.querySelectorAll("[data-download]").forEach(function (a) { a.href = zip.browser_download_url; });
+    })
+    .catch(function () {});
+</script>
+</body>
+</html>
