@@ -7,7 +7,80 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
+
+// Windows のライト／ダークモードとアクセントカラーに合わせた配色
+static class Theme
+{
+    public static bool Dark;
+    public static Color Bg, Panel, Grid, Label, Value, Ring, Accent, OnAccent;
+
+    public static void Load()
+    {
+        Dark = ReadDword(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1) == 0;
+#if THEME_TEST
+        // 見た目確認用のビルドだけ、環境変数でライト／ダークを強制できる
+        string force = Environment.GetEnvironmentVariable("KNOBEQ_THEME");
+        if (force == "dark") Dark = true; else if (force == "light") Dark = false;
+#endif
+        if (Dark)
+        {
+            Bg = Rgb(0x20, 0x20, 0x20); Panel = Rgb(0x2B, 0x2B, 0x2B); Grid = Rgb(0x3D, 0x3D, 0x3D);
+            Label = Rgb(0xC5, 0xC5, 0xC5); Value = Rgb(0xFF, 0xFF, 0xFF); Ring = Rgb(0x9C, 0x9C, 0x9C);
+            OnAccent = Rgb(0, 0, 0);
+        }
+        else
+        {
+            Bg = Rgb(0xF3, 0xF3, 0xF3); Panel = Rgb(0xFF, 0xFF, 0xFF); Grid = Rgb(0xE5, 0xE5, 0xE5);
+            Label = Rgb(0x5D, 0x5D, 0x5D); Value = Rgb(0x1A, 0x1A, 0x1A); Ring = Rgb(0x86, 0x86, 0x86);
+            OnAccent = Rgb(0xFF, 0xFF, 0xFF);
+        }
+        // アクセントカラーは、ダークでは明るめ、ライトでは暗めの色を使う（Windows 11 と同じ使い分け）
+        Accent = ReadAccent(Dark ? 1 : 4, Dark ? Rgb(0x4C, 0xC2, 0xFF) : Rgb(0x00, 0x5F, 0xB8));
+    }
+
+    static Color Rgb(int r, int g, int b) { return Color.FromArgb(r, g, b); }
+
+    static int ReadDword(string path, string name, int fallback)
+    {
+        try
+        {
+            using (RegistryKey k = Registry.CurrentUser.OpenSubKey(path))
+            {
+                object v = k == null ? null : k.GetValue(name);
+                if (v is int) return (int)v;
+            }
+        }
+        catch { }
+        return fallback;
+    }
+
+    // AccentPalette は RGBA が 8 色並んだ値（0: 最も明るい … 3: 基本色 … 6: 最も暗い）
+    static Color ReadAccent(int index, Color fallback)
+    {
+        try
+        {
+            using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"))
+            {
+                byte[] p = k == null ? null : k.GetValue("AccentPalette") as byte[];
+                if (p != null && p.Length >= 32) return Rgb(p[index * 4], p[index * 4 + 1], p[index * 4 + 2]);
+            }
+        }
+        catch { }
+        return fallback;
+    }
+
+    [DllImport("dwmapi.dll")]
+    static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    // タイトルバーもダーク／ライトに合わせる（Windows 10 20H1 以降）
+    public static void ApplyTitleBar(IntPtr hwnd)
+    {
+        int on = Dark ? 1 : 0;
+        try { DwmSetWindowAttribute(hwnd, 20, ref on, 4); } catch { }
+    }
+}
 
 class Knob : Control
 {
@@ -60,13 +133,14 @@ class Knob : Control
         g.SmoothingMode = SmoothingMode.AntiAlias;
         float size = Math.Min(Width, Height) - 6;
         float cx = Width / 2f, cy = Height / 2f, r = size / 2f;
-        using (Pen p = new Pen(Color.FromArgb(120, 165, 190), 3f))
+        using (Pen p = new Pen(Theme.Ring, 3f))
             g.DrawEllipse(p, cx - r, cy - r, size, size);
         double t = (value - Min) / (Max - Min);
         double rad = (-135 + 270 * t) * Math.PI / 180.0;
         float rr = r * 0.70f, dot = Math.Max(8f, size * 0.13f);
         float x = cx + (float)Math.Sin(rad) * rr, y = cy - (float)Math.Cos(rad) * rr;
-        g.FillEllipse(Brushes.White, x - dot / 2, y - dot / 2, dot, dot);
+        using (Brush b = new SolidBrush(Theme.Accent))
+            g.FillEllipse(b, x - dot / 2, y - dot / 2, dot, dot);
     }
 }
 
@@ -92,11 +166,6 @@ class ResponseGraph : Control
     public Band[] Bands;
     public Func<Band, bool> IsActive;
     public bool On = true;
-
-    static readonly Color Panel = Color.FromArgb(36, 48, 61);
-    static readonly Color Grid = Color.FromArgb(62, 80, 98);
-    static readonly Color Text_ = Color.FromArgb(120, 150, 170);
-    static readonly Color Curve = Color.FromArgb(150, 205, 230);
 
     public ResponseGraph()
     {
@@ -152,7 +221,7 @@ class ResponseGraph : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         Graphics g = e.Graphics;
-        g.Clear(Panel);
+        g.Clear(Theme.Panel);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         const int padL = 24, padR = 6, padT = 6, padB = 16;
         RectangleF area = new RectangleF(padL, padT, Width - padL - padR, Height - padT - padB);
@@ -172,8 +241,8 @@ class ResponseGraph : Control
         Func<double, float> Y = d => area.Top + (float)((range - d) / (2 * range)) * area.Height;
 
         using (Font font = new Font("Segoe UI", 7f))
-        using (Brush tb = new SolidBrush(Text_))
-        using (Pen gp = new Pen(Grid, 1f))
+        using (Brush tb = new SolidBrush(Theme.Label))
+        using (Pen gp = new Pen(Theme.Grid, 1f))
         {
             StringFormat center = new StringFormat { Alignment = StringAlignment.Center };
             StringFormat right = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
@@ -186,7 +255,7 @@ class ResponseGraph : Control
             for (double d = -range; d <= range; d += range / 2)
             {
                 float y = Y(d);
-                using (Pen p = new Pen(d == 0 ? Text_ : Grid, 1f)) g.DrawLine(p, area.Left, y, area.Right, y);
+                using (Pen p = new Pen(d == 0 ? Theme.Ring : Theme.Grid, 1f)) g.DrawLine(p, area.Left, y, area.Right, y);
                 string label = d > 0 ? "+" + d : d.ToString();
                 g.DrawString(label, font, tb, padL - 2, y, right);
             }
@@ -201,23 +270,19 @@ class ResponseGraph : Control
             fill.AddLines(pts);
             fill.AddLine(area.Right, pts[n - 1].Y, area.Right, Y(0));
             fill.CloseFigure();
-            using (Brush fb = new SolidBrush(Color.FromArgb(On ? 50 : 20, Curve))) g.FillPath(fb, fill);
+            using (Brush fb = new SolidBrush(Color.FromArgb(On ? 50 : 20, Theme.Accent))) g.FillPath(fb, fill);
         }
-        using (Pen cp = new Pen(On ? Curve : Grid, 2f)) g.DrawLines(cp, pts);
+        using (Pen cp = new Pen(On ? Theme.Accent : Theme.Ring, 2f)) g.DrawLines(cp, pts);
 
         if (!On)
             using (Font f = new Font("Segoe UI", 9f, FontStyle.Bold))
-            using (Brush b = new SolidBrush(Text_))
+            using (Brush b = new SolidBrush(Theme.Label))
                 g.DrawString("EQ OFF", f, b, area.Left + area.Width / 2, area.Top + 4, new StringFormat { Alignment = StringAlignment.Center });
     }
 }
 
 class MainForm : Form
 {
-    static readonly Color Bg = Color.FromArgb(46, 61, 77);
-    static readonly Color LabelColor = Color.FromArgb(150, 190, 210);
-    static readonly Color ValueColor = Color.FromArgb(205, 218, 228);
-
     // 画面の上から順に並ぶ（高音 → 低音）
     // 3 ノブモードでは 3 つで全帯域を受け持つので、シェルフの傾きをゆるめ、Mid を広めにする
     Band[] bands = new Band[] {
@@ -231,8 +296,8 @@ class MainForm : Form
 
     const int GraphTop = 45, GraphHeight = 130;
     const int KnobTop = GraphTop + GraphHeight + 15, Step = 105, KnobSize = 80;
-    static readonly Color Accent = Color.FromArgb(120, 165, 190);
 
+    Label titleLabel;
     CheckBox onBox;
     Button reset, mode3Btn, mode6Btn;
     ResponseGraph graph;
@@ -243,14 +308,14 @@ class MainForm : Form
 
     public MainForm()
     {
+        Theme.Load();
         Text = "Knob EQ";
-        BackColor = Bg;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
-        AddLabel("EQUALIZER", 18, 10, 130, 11f, FontStyle.Bold, LabelColor, ContentAlignment.MiddleLeft);
+        titleLabel = AddLabel("EQUALIZER", 18, 10, 130, 11f, FontStyle.Bold, ContentAlignment.MiddleLeft);
 
         // 3 / 6 ノブの切り替えボタン（右上）
         ToolTip tip = new ToolTip();
@@ -275,8 +340,8 @@ class MainForm : Form
             Controls.Add(b.Knob);
 
             string freq = b.Freq >= 1000 ? (b.Freq / 1000) + "k" : b.Freq.ToString();
-            b.NameLabel = AddLabel(b.Name + "  " + freq, 0, 0, 105, 10f, FontStyle.Regular, LabelColor, ContentAlignment.MiddleCenter);
-            b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ValueColor, ContentAlignment.MiddleCenter);
+            b.NameLabel = AddLabel(b.Name + "  " + freq, 0, 0, 105, 10f, FontStyle.Regular, ContentAlignment.MiddleCenter);
+            b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ContentAlignment.MiddleCenter);
 
             tip.SetToolTip(b.Knob, "上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB");
             b.Knob.ValueChanged += delegate
@@ -291,7 +356,6 @@ class MainForm : Form
         onBox = new CheckBox();
         onBox.Text = "EQ ON";
         onBox.Checked = true;
-        onBox.ForeColor = LabelColor;
         onBox.AutoSize = true;
         onBox.CheckedChanged += delegate { graph.On = onBox.Checked; graph.Invalidate(); ScheduleSave(); };
         Controls.Add(onBox);
@@ -307,8 +371,56 @@ class MainForm : Form
         eqFile = Path.Combine(configDir, "knobeq.txt");
         Load_();
         DoLayout();
+        ApplyTheme();
         EnsureInclude();
         Save();
+
+        // Windows の設定でライト／ダークやアクセントカラーが変わったら、すぐに配色を切り替える
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+    }
+
+    void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category != UserPreferenceCategory.General && e.Category != UserPreferenceCategory.Color &&
+            e.Category != UserPreferenceCategory.VisualStyle) return;
+        if (IsHandleCreated) BeginInvoke((MethodInvoker)delegate { Theme.Load(); ApplyTheme(); });
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Theme.ApplyTitleBar(Handle);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        base.OnFormClosed(e);
+    }
+
+    // 今のテーマの色を各部品に塗り直す
+    void ApplyTheme()
+    {
+        BackColor = Theme.Bg;
+        titleLabel.ForeColor = Theme.Label;
+        foreach (Band b in bands)
+        {
+            b.NameLabel.ForeColor = Theme.Label;
+            b.ValueLabel.ForeColor = Theme.Value;
+            b.Knob.Invalidate();
+        }
+        onBox.ForeColor = Theme.Label;
+        foreach (Button btn in new Button[] { mode3Btn, mode6Btn, reset })
+        {
+            btn.FlatAppearance.BorderColor = Theme.Ring;
+            btn.FlatAppearance.MouseOverBackColor = Theme.Panel;
+        }
+        StyleModeButton(reset, false);
+        StyleModeButton(mode3Btn, threeMode);
+        StyleModeButton(mode6Btn, !threeMode);
+        graph.Invalidate();
+        if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
+        Invalidate(true);
     }
 
     bool IsActive(Band b) { return !threeMode || b.InThree; }
@@ -363,8 +475,10 @@ class MainForm : Form
 
     void StyleModeButton(Button btn, bool selected)
     {
-        btn.BackColor = selected ? Accent : Bg;
-        btn.ForeColor = selected ? Bg : LabelColor;
+        btn.BackColor = selected ? Theme.Accent : Theme.Bg;
+        btn.ForeColor = selected ? Theme.OnAccent : Theme.Label;
+        btn.FlatAppearance.BorderColor = selected ? Theme.Accent : Theme.Ring;
+        btn.FlatAppearance.MouseOverBackColor = selected ? Theme.Accent : Theme.Panel;
     }
 
     Button AddButton(string text, int x, int y, int w, int h)
@@ -372,22 +486,19 @@ class MainForm : Form
         Button btn = new Button();
         btn.Text = text;
         btn.FlatStyle = FlatStyle.Flat;
-        btn.ForeColor = LabelColor;
-        btn.FlatAppearance.BorderColor = Accent;
         btn.Location = new Point(x, y);
         btn.Size = new Size(w, h);
         Controls.Add(btn);
         return btn;
     }
 
-    Label AddLabel(string text, int x, int y, int w, float size, FontStyle style, Color color, ContentAlignment align)
+    Label AddLabel(string text, int x, int y, int w, float size, FontStyle style, ContentAlignment align)
     {
         Label l = new Label();
         l.Text = text;
         l.Location = new Point(x, y);
         l.Size = new Size(w, (int)(size * 1.9f));
         l.Font = new Font(size >= 20 ? "Segoe UI Light" : "Segoe UI", size, style);
-        l.ForeColor = color;
         l.BackColor = Color.Transparent;
         l.TextAlign = align;
         Controls.Add(l);
