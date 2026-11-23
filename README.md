@@ -154,6 +154,9 @@ Windows に標準で入っている C# コンパイラを使うので、追加�
   この場合は注意表示も出ないので、アプリ側の出力設定を確認してください。
 - 実行ファイルには署名がないため、初回起動時に Windows SmartScreen の警告が出ることがあります。
 
+## 開発の支援
+。気に入っていただけたら、[OFUSE](https://ofuse.me/c0fdccc4) から応援していただけるとうれしいです（海外からは [Ko-fi](https://ko-fi.com/waltowen404923) もご利用いただけます）。
+
 ## ライセンス
 
 [MIT License](LICENSE)
@@ -200,6 +203,10 @@ If Windows shows "Windows protected your PC", click "More info" → "Run anyway"
 - Other files such as `peace.txt` are left untouched.
 
 To uninstall, remove the `Include: knobeq.txt` line from `config.txt`, delete `knobeq.txt`, and delete the KnobEQ folder.
+
+### Support
+
+KnobEQ is free. If you enjoy it, you can [buy me a coffee on Ko-fi](https://ko-fi.com/waltowen404923). Thank you!
 
 ### License
 

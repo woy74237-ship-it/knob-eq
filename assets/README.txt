@@ -95,7 +95,8 @@ KnobEQ
   このアプリは無料でお使いいただけます。
   気に入っていただけたら、開発を応援していただけるとうれしいです。
 
-    https://ofuse.me/c0fdccc4
+    https://ofuse.me/c0fdccc4（日本から）
+    https://ko-fi.com/waltowen404923（海外から）
 
 
 ■ 公式ページ
