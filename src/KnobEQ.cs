@@ -251,6 +251,7 @@ class ResponseGraph : Control
     public Band[] Bands;
     public Func<Band, bool> IsActive;
     public bool On = true;
+    public Func<float> Preamp; // 自動で下げている全体の音量 (dB)。右上に表示する
 
     public ResponseGraph()
     {
@@ -294,13 +295,27 @@ class ResponseGraph : Control
         return 10 * Math.Log10((nr * nr + ni * ni) / (dr * dr + di * di));
     }
 
-    double TotalDb(double f)
+    // 効いているつまみをすべて合わせたゲイン (dB)
+    double SumDb(double f)
     {
-        if (!On || Bands == null) return 0;
+        if (Bands == null) return 0;
         double sum = 0;
         foreach (Band b in Bands)
             if (b.Knob != null && (IsActive == null || IsActive(b))) sum += BandDb(b, b.Knob.Value, f);
         return sum;
+    }
+
+    double TotalDb(double f) { return On ? SumDb(f) : 0; }
+
+    // 20 Hz〜20 kHz で、つまみを合わせて最も持ち上がっている量 (dB)。持ち上げていなければ 0
+    // つまみ同士の効きが重なった部分も含めて調べる（各つまみの中心周波数は必ず調べる）
+    public double PeakBoostDb()
+    {
+        double peak = 0;
+        const int N = 400;
+        for (int i = 0; i <= N; i++) peak = Math.Max(peak, SumDb(FMin * Math.Pow(FMax / FMin, i / (double)N)));
+        if (Bands != null) foreach (Band b in Bands) peak = Math.Max(peak, SumDb(b.Freq));
+        return peak;
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -358,6 +373,19 @@ class ResponseGraph : Control
             using (Brush fb = new SolidBrush(Color.FromArgb(On ? 50 : 20, Theme.Accent))) g.FillPath(fb, fill);
         }
         using (Pen cp = new Pen(On ? Theme.Accent : Theme.Ring, 2f)) g.DrawLines(cp, pts);
+
+        // 自動で下げている全体の音量（プリアンプ）を右上に表示する。カーブと重なっても読めるよう下地を敷く
+        if (On && Preamp != null)
+            using (Font f = new Font("Segoe UI", 7.5f))
+            using (Brush tb = new SolidBrush(Theme.Value))
+            using (Brush bg = new SolidBrush(Color.FromArgb(200, Theme.Panel)))
+            {
+                string text = "Preamp " + Preamp().ToString("0.0", CultureInfo.InvariantCulture) + " dB";
+                SizeF sz = g.MeasureString(text, f);
+                RectangleF box = new RectangleF(area.Right - sz.Width - 2, area.Top + 1, sz.Width + 2, sz.Height);
+                g.FillRectangle(bg, box);
+                g.DrawString(text, f, tb, box.Left + 1, box.Top);
+            }
 
         if (!On)
             using (Font f = new Font("Segoe UI", 9f, FontStyle.Bold))
@@ -430,6 +458,7 @@ class MainForm : Form
         graph.Size = new Size(216, GraphHeight);
         graph.Bands = bands;
         graph.IsActive = IsActive;
+        graph.Preamp = Preamp;
         Controls.Add(graph);
 
         foreach (Band b in bands)
@@ -756,16 +785,19 @@ class MainForm : Form
         }
     }
 
+    // ブーストした分だけ全体を下げて音割れ（クリップ）を防ぐ。
+    // つまみ同士の重なりも含めた補正カーブの最大値を、0.1 dB 単位で切り上げて下げる
+    float Preamp()
+    {
+        double peak = graph.PeakBoostDb();
+        return -(float)(Math.Ceiling(peak * 10 - 1e-6) / 10) + 0f; // + 0f で "-0.0" 表示を避ける
+    }
+
     void Save()
     {
         bool on = onBox.Checked;
         StringBuilder state = new StringBuilder("# state:");
-        float boost = 0f;
-        foreach (Band b in bands)
-        {
-            state.Append(" " + b.Name + "=" + Fmt(b.Value6));
-            if (IsActive(b)) boost = Math.Max(boost, b.Knob.Value);
-        }
+        foreach (Band b in bands) state.Append(" " + b.Name + "=" + Fmt(b.Value6));
         foreach (Band b in bands)
             if (b.InThree) state.Append(" 3:" + b.Name + "=" + Fmt(b.Value3));
         state.Append(threeMode ? " mode=3" : " mode=6");
@@ -778,8 +810,7 @@ class MainForm : Form
         {
             sb.AppendLine("Device: all");
             sb.AppendLine("Channel: all");
-            // ブーストした分だけ全体を下げて音割れ（クリップ）を防ぐ
-            sb.AppendLine("Preamp: " + Fmt(-boost) + " dB");
+            sb.AppendLine("Preamp: " + Fmt(Preamp()) + " dB");
             // 低音から順に書く
             for (int i = bands.Length - 1; i >= 0; i--)
             {
