@@ -39,6 +39,21 @@ static class L
     public static string T(string ja, string en) { return Ja ? ja : en; }
 }
 
+// メニュー（♥ボタンの応援先の選択）を、今のテーマの色で描く
+class ThemeMenuColors : ProfessionalColorTable
+{
+    public override Color ToolStripDropDownBackground { get { return Theme.Panel; } }
+    public override Color MenuBorder { get { return Theme.Ring; } }
+    public override Color MenuItemBorder { get { return Theme.Accent; } }
+    public override Color MenuItemSelected { get { return Theme.Grid; } }
+    public override Color MenuItemSelectedGradientBegin { get { return Theme.Grid; } }
+    public override Color MenuItemSelectedGradientEnd { get { return Theme.Grid; } }
+    public override Color ImageMarginGradientBegin { get { return Theme.Panel; } }
+    public override Color ImageMarginGradientMiddle { get { return Theme.Panel; } }
+    public override Color ImageMarginGradientEnd { get { return Theme.Panel; } }
+    public override Color SeparatorDark { get { return Theme.Grid; } }
+}
+
 // Windows のライト／ダークモードとアクセントカラーに合わせた配色
 static class Theme
 {
@@ -817,10 +832,37 @@ class MainForm : Form
     const string OfuseUrl = "https://ofuse.me/c0fdccc4";
     const string KofiUrl = "https://ko-fi.com/waltowen404923";
 
+    // ♥ボタン: 日本語の画面では OFUSE と Ko-fi を選ぶメニューを出す。英語の画面は Ko-fi を直接開く
+    //（OFUSE は日本語のサービスなので）
     void OpenSupportPage()
     {
-        try { System.Diagnostics.Process.Start(L.Ja ? OfuseUrl : KofiUrl); }
-        catch (Exception ex) { MessageBox.Show(L.T("ページを開けませんでした:\n", "Couldn't open the page:\n") + ex.Message, Text); }
+        if (!L.Ja) { OpenUrl(KofiUrl); return; }
+
+        ContextMenuStrip menu = new ContextMenuStrip();
+        menu.Renderer = new ToolStripProfessionalRenderer(new ThemeMenuColors());
+        menu.BackColor = Theme.Panel;
+        menu.ShowImageMargin = false;
+        menu.Font = new Font("Segoe UI", 9.5f);
+        AddSupportItem(menu, "OFUSE で応援する", "メッセージを添えて、円で応援", OfuseUrl);
+        AddSupportItem(menu, "Ko-fi で応援する", "メッセージなしで、ワンクリックで応援（ドル）", KofiUrl);
+        menu.Closed += delegate { BeginInvoke((MethodInvoker)menu.Dispose); };
+        // ボタンは右上にあるので、ボタンの右端を基準に左下へ開く（ウィンドウの外にはみ出さないように）
+        menu.Show(supportBtn, new Point(supportBtn.Width, supportBtn.Height), ToolStripDropDownDirection.BelowLeft);
+    }
+
+    static void AddSupportItem(ContextMenuStrip menu, string title, string note, string url)
+    {
+        ToolStripMenuItem item = new ToolStripMenuItem(title + "\n" + note);
+        item.ForeColor = Theme.Value;
+        item.Padding = new Padding(4, 6, 4, 6);
+        item.Click += delegate { OpenUrl(url); };
+        menu.Items.Add(item);
+    }
+
+    static void OpenUrl(string url)
+    {
+        try { System.Diagnostics.Process.Start(url); }
+        catch (Exception ex) { MessageBox.Show(L.T("ページを開けませんでした:\n", "Couldn't open the page:\n") + ex.Message, "Knob EQ"); }
     }
     ToolTip tip;
 
@@ -856,7 +898,7 @@ class MainForm : Form
         tip = new ToolTip();
         // 開発を応援するページを開く（日本語の画面は OFUSE、英語の画面は Ko-fi）
         supportBtn = AddButton("♥", 0, 0, 24, 24);
-        tip.SetToolTip(supportBtn, L.T("開発を応援する（OFUSE）", "Support KnobEQ (Ko-fi)"));
+        tip.SetToolTip(supportBtn, L.T("開発を応援する（OFUSE / Ko-fi）", "Support KnobEQ (Ko-fi)"));
         supportBtn.Click += delegate { OpenSupportPage(); };
         layoutBtn = AddButton("", 0, 0, 24, 24);
         layoutBtn.Click += delegate { SetHorizontal(!horizontal); };
