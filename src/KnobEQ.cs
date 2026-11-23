@@ -75,10 +75,13 @@ class Band
 {
     public string Name, Filter; // Filter は Equalizer APO の書式 ("LS", "PK", "HS")
     public int Freq; public float Q;
-    public bool InThree; // 3 ノブモードでも表示するか
+    public bool InThree;  // 3 ノブモードでも表示するか
+    public float ThreeQ;  // 3 ノブモードで使う Q（0 なら Q と同じ）
+    public float ActiveQ; // 今のモードで使う Q。シェルフで 0 なら Equalizer APO の標準の傾き
+    public float Value6, Value3; // モードごとに覚えておく値 (dB)。つまみには今のモードの値を表示する
     public Knob Knob; public Label NameLabel, ValueLabel;
-    public Band(string name, string filter, int freq, float q, bool inThree)
-    { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; }
+    public Band(string name, string filter, int freq, float q, bool inThree, float threeQ = 0f)
+    { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; ThreeQ = threeQ; ActiveQ = q; }
 }
 
 // 全バンドを合わせた周波数特性（どれだけ持ち上げ／下げているか）を描くグラフ
@@ -110,14 +113,15 @@ class ResponseGraph : Control
         double b0, b1, b2, a0, a1, a2;
         if (b.Filter == "PK")
         {
-            double al = s / (2 * b.Q);
+            double al = s / (2 * b.ActiveQ);
             b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A;
             a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A;
         }
         else
         {
-            // Equalizer APO の LS / HS は Q 0.707 相当の傾き
-            double al = s / 2 * Math.Sqrt(2), sq = 2 * Math.Sqrt(A) * al;
+            // Q の指定が無い LS / HS は Q 0.707 相当の傾きとして描く
+            double q = b.ActiveQ > 0 ? b.ActiveQ : Math.Sqrt(0.5);
+            double al = s / (2 * q), sq = 2 * Math.Sqrt(A) * al;
             if (b.Filter == "LS")
             {
                 b0 = A * ((A + 1) - (A - 1) * c + sq); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - sq);
@@ -215,12 +219,13 @@ class MainForm : Form
     static readonly Color ValueColor = Color.FromArgb(205, 218, 228);
 
     // 画面の上から順に並ぶ（高音 → 低音）
+    // 3 ノブモードでは 3 つで全帯域を受け持つので、シェルフの傾きをゆるめ、Mid を広めにする
     Band[] bands = new Band[] {
-        new Band("Treble",   "HS", 8000, 0f,   true),
+        new Band("Treble",   "HS", 8000, 0f,   true, 0.5f),
         new Band("High-Mid", "PK", 3000, 1.0f, false),
-        new Band("Mid",      "PK", 1000, 1.0f, true),
+        new Band("Mid",      "PK", 1000, 1.0f, true, 0.7f),
         new Band("Low-Mid",  "PK", 300,  1.0f, false),
-        new Band("Bass",     "LS", 100,  0f,   true),
+        new Band("Bass",     "LS", 100,  0f,   true, 0.5f),
         new Band("Sub",      "PK", 40,   1.0f, false),
     };
 
@@ -274,7 +279,13 @@ class MainForm : Form
             b.ValueLabel = AddLabel("0.0", 0, 0, 105, 20f, FontStyle.Regular, ValueColor, ContentAlignment.MiddleCenter);
 
             tip.SetToolTip(b.Knob, "上下ドラッグ / ホイールで調整（Shift で微調整）\nダブルクリックで 0 dB");
-            b.Knob.ValueChanged += delegate { UpdateLabels(); ScheduleSave(); };
+            b.Knob.ValueChanged += delegate
+            {
+                // 表示中のつまみの値を、今のモードの値として覚える
+                if (IsActive(b)) { if (threeMode) b.Value3 = b.Knob.Value; else b.Value6 = b.Knob.Value; }
+                UpdateLabels();
+                ScheduleSave();
+            };
         }
 
         onBox = new CheckBox();
@@ -286,7 +297,7 @@ class MainForm : Form
         Controls.Add(onBox);
 
         reset = AddButton("Reset", 0, 0, 75, 28);
-        // 表示中のつまみだけ 0 に戻す（隠れているつまみの値は残す）
+        // 今のモードのつまみをすべて 0 に戻す（もう一方のモードの値は変えない）
         reset.Click += delegate { foreach (Band b in bands) if (IsActive(b)) b.Knob.Value = 0; };
 
         saveTimer.Interval = 120;
@@ -306,8 +317,19 @@ class MainForm : Form
     {
         if (three == threeMode) return;
         threeMode = three;
+        ShowModeValues();
         DoLayout();
         ScheduleSave();
+    }
+
+    // つまみに今のモードの値を表示する
+    void ShowModeValues()
+    {
+        bool wasLoading = loading;
+        loading = true; // 途中で保存が走らないようにする
+        foreach (Band b in bands) b.Knob.Value = threeMode && b.InThree ? b.Value3 : b.Value6;
+        loading = wasLoading;
+        UpdateLabels();
     }
 
     // 表示中のつまみを上から詰めて並べ、ウィンドウの高さを合わせる
@@ -317,6 +339,7 @@ class MainForm : Form
         int row = 0;
         foreach (Band b in bands)
         {
+            b.ActiveQ = threeMode && b.ThreeQ > 0 ? b.ThreeQ : b.Q;
             bool show = IsActive(b);
             b.Knob.Visible = b.NameLabel.Visible = b.ValueLabel.Visible = show;
             if (!show) continue;
@@ -402,7 +425,8 @@ class MainForm : Form
     }
 
     // 前回の値を knobeq.txt の先頭コメントから復元
-    //   書式: "# state: Treble=0.0 High-Mid=0.0 ... Bass=1.0 Sub=0.0 mode=6 on"
+    //   書式: "# state: Treble=0.0 ... Sub=0.0 3:Treble=0.0 3:Mid=0.0 3:Bass=0.0 mode=6 on"
+    //   "3:" が付いたものが 3 ノブモードの値、付いていないものが 6 ノブモードの値
     void Load_()
     {
         loading = true;
@@ -414,6 +438,7 @@ class MainForm : Form
                 {
                     if (!line.StartsWith("# state:")) continue;
                     threeMode = false; // mode= が無い古い形式は 6 ノブ扱い
+                    bool hasThree = false;
                     string[] p = line.Substring(8).Trim().Split(' ');
                     if (p.Length == 0) continue;
                     foreach (string kv in p)
@@ -421,16 +446,22 @@ class MainForm : Form
                         int eq = kv.IndexOf('=');
                         if (eq < 0) continue;
                         if (kv.StartsWith("mode=")) { threeMode = kv == "mode=3"; continue; }
-                        Band b = Find(kv.Substring(0, eq));
-                        if (b != null) b.Knob.Value = Parse(kv.Substring(eq + 1));
+                        bool three = kv.StartsWith("3:");
+                        string name = kv.Substring(three ? 2 : 0, eq - (three ? 2 : 0));
+                        Band b = Find(name);
+                        if (b == null) continue;
+                        float v = Math.Max(Knob.Min, Math.Min(Knob.Max, Parse(kv.Substring(eq + 1))));
+                        if (three) { b.Value3 = v; hasThree = true; } else b.Value6 = v;
                     }
+                    // 値が 1 組しか無い古い形式では、3 ノブにも同じ値を使う
+                    if (!hasThree) foreach (Band b in bands) b.Value3 = b.Value6;
                     onBox.Checked = p[p.Length - 1] != "off";
                 }
             }
         }
         catch { }
+        ShowModeValues();
         loading = false;
-        UpdateLabels();
     }
 
     // config.txt に "Include: knobeq.txt" が無ければ追加（初回のみバックアップを作成）
@@ -474,9 +505,11 @@ class MainForm : Form
         float boost = 0f;
         foreach (Band b in bands)
         {
-            state.Append(" " + b.Name + "=" + Fmt(b.Knob.Value)); // 隠れているつまみの値も覚えておく
+            state.Append(" " + b.Name + "=" + Fmt(b.Value6));
             if (IsActive(b)) boost = Math.Max(boost, b.Knob.Value);
         }
+        foreach (Band b in bands)
+            if (b.InThree) state.Append(" 3:" + b.Name + "=" + Fmt(b.Value3));
         state.Append(threeMode ? " mode=3" : " mode=6");
         state.Append(on ? " on" : " off");
 
@@ -494,8 +527,10 @@ class MainForm : Form
             {
                 Band b = bands[i];
                 if (!IsActive(b)) continue; // 3 ノブモードでは隠れているつまみを効かせない
-                string line = "Filter: ON " + b.Filter + " Fc " + b.Freq + " Hz Gain " + Fmt(b.Knob.Value) + " dB";
-                if (b.Filter == "PK") line += " Q " + Fmt(b.Q);
+                // Q を指定するシェルフは LSC / HSC と書く
+                string type = b.Filter != "PK" && b.ActiveQ > 0 ? b.Filter + "C" : b.Filter;
+                string line = "Filter: ON " + type + " Fc " + b.Freq + " Hz Gain " + Fmt(b.Knob.Value) + " dB";
+                if (b.ActiveQ > 0) line += " Q " + b.ActiveQ.ToString("0.0##", CultureInfo.InvariantCulture);
                 sb.AppendLine(line);
             }
         }
