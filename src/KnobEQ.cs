@@ -408,7 +408,8 @@ static class Recipes
             Title = T("小さい音量でも迫力がほしい", "Full sound at low volume"),
             Why = T("人の耳は、音量が小さいと低音と高音を感じにくくなります。両端を少し足すと、小音量でもバランスよく聞こえます。",
                     "At low volume our ears are less sensitive to bass and treble. Adding a little at both ends keeps the balance when you listen quietly."),
-            Six = new[] { A("Bass", 3), A("Treble", 2) },
+            // 6 ノブの Bass は 100 Hz の山なので、いちばん低い帯域は Sub で足す
+            Six = new[] { A("Sub", 2), A("Bass", 2), A("Treble", 2) },
             Three = new[] { A("Bass", 3), A("Treble", 2) },
             Tip6 = T("大きな音量に戻したら、つまみも戻すのがおすすめです。", "When you turn the volume back up, it's best to bring the knobs back too."),
             Tip3 = T("大きな音量に戻したら、つまみも戻すのがおすすめです。", "When you turn the volume back up, it's best to bring the knobs back too.") },
@@ -419,17 +420,22 @@ static class Recipes
 // 1 つのつまみが担当するフィルター
 class Band
 {
-    public string Name, Filter; // Filter は Equalizer APO の書式 ("LS", "PK", "HS")
+    public string Name, Filter; // Filter は Equalizer APO の書式 ("LS", "PK", "HS")。6 ノブモードの形
     public int Freq; public float Q;
     public bool InThree;  // 3 ノブモードでも表示するか
     public float ThreeQ;  // 3 ノブモードで使う Q（0 なら Q と同じ）
+    public string ThreeFilter; // 3 ノブモードで使うフィルターの形（null なら Filter と同じ）
     public float ActiveQ; // 今のモードで使う Q。シェルフで 0 なら Equalizer APO の標準の傾き
+    public string ActiveFilter; // 今のモードで使うフィルターの形
     public float Value6, Value3; // モードごとに覚えておく値 (dB)。つまみには今のモードの値を表示する
     public Knob Knob; public Label NameLabel, ValueLabel;
     // 画面に出す名前（例: "Low-Mid  300"、"Treble  8k"）
     public string DisplayName { get { return Name + "  " + (Freq >= 1000 ? (Freq / 1000) + "k" : Freq.ToString()); } }
-    public Band(string name, string filter, int freq, float q, bool inThree, float threeQ = 0f)
-    { Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; ThreeQ = threeQ; ActiveQ = q; }
+    public Band(string name, string filter, int freq, float q, bool inThree, float threeQ = 0f, string threeFilter = null)
+    {
+        Name = name; Filter = filter; Freq = freq; Q = q; InThree = inThree; ThreeQ = threeQ; ThreeFilter = threeFilter;
+        ActiveQ = q; ActiveFilter = filter;
+    }
 }
 
 // 全バンドを合わせた周波数特性（どれだけ持ち上げ／下げているか）を描くグラフ
@@ -457,7 +463,7 @@ class ResponseGraph : Control
         double A = Math.Pow(10, gainDb / 40), w0 = 2 * Math.PI * b.Freq / Fs;
         double c = Math.Cos(w0), s = Math.Sin(w0);
         double b0, b1, b2, a0, a1, a2;
-        if (b.Filter == "PK")
+        if (b.ActiveFilter == "PK")
         {
             double al = s / (2 * b.ActiveQ);
             b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A;
@@ -468,7 +474,7 @@ class ResponseGraph : Control
             // Q の指定が無い LS / HS は Q 0.707 相当の傾きとして描く
             double q = b.ActiveQ > 0 ? b.ActiveQ : Math.Sqrt(0.5);
             double al = s / (2 * q), sq = 2 * Math.Sqrt(A) * al;
-            if (b.Filter == "LS")
+            if (b.ActiveFilter == "LS")
             {
                 b0 = A * ((A + 1) - (A - 1) * c + sq); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - sq);
                 a0 = (A + 1) + (A - 1) * c + sq;       a1 = -2 * ((A - 1) + (A + 1) * c);    a2 = (A + 1) + (A - 1) * c - sq;
@@ -818,7 +824,8 @@ class MainForm : Form
         new Band("High-Mid", "PK", 3000, 1.0f, false),
         new Band("Mid",      "PK", 1000, 1.0f, true, 0.7f),
         new Band("Low-Mid",  "PK", 300,  1.0f, false),
-        new Band("Bass",     "LS", 100,  0f,   true, 0.5f),
+        // Bass は 6 ノブでは 100 Hz の山（いちばん低い帯域は Sub が担当）、3 ノブでは低音全体を受け持つ棚の形
+        new Band("Bass",     "PK", 100,  1.0f, true, 0.5f, "LS"),
         new Band("Sub",      "PK", 40,   1.0f, false),
     };
 
@@ -1210,6 +1217,7 @@ class MainForm : Form
         {
             Band b = bands[horizontal ? bands.Length - 1 - i : i];
             b.ActiveQ = threeMode && b.ThreeQ > 0 ? b.ThreeQ : b.Q;
+            b.ActiveFilter = threeMode && b.ThreeFilter != null ? b.ThreeFilter : b.Filter;
             bool show = IsActive(b);
             b.Knob.Visible = b.NameLabel.Visible = b.ValueLabel.Visible = show;
             if (!show) continue;
@@ -1415,7 +1423,7 @@ class MainForm : Form
                 Band b = bands[i];
                 if (!IsActive(b)) continue; // 3 ノブモードでは隠れているつまみを効かせない
                 // Q を指定するシェルフは LSC / HSC と書く
-                string type = b.Filter != "PK" && b.ActiveQ > 0 ? b.Filter + "C" : b.Filter;
+                string type = b.ActiveFilter != "PK" && b.ActiveQ > 0 ? b.ActiveFilter + "C" : b.ActiveFilter;
                 string line = "Filter: ON " + type + " Fc " + b.Freq + " Hz Gain " + Fmt(b.Knob.Value) + " dB";
                 if (b.ActiveQ > 0) line += " Q " + b.ActiveQ.ToString("0.0##", CultureInfo.InvariantCulture);
                 sb.AppendLine(line);

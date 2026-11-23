@@ -69,7 +69,7 @@ A simple knob-style equalizer for Windows, powered by Equalizer APO. → [Englis
 | ボーカルを前に出したい | High-Mid +2、Mid +1、Low-Mid −1 | Mid +2 |
 | 刺さる音をやわらげたい | High-Mid −2〜−3、Treble −1〜−2 | Treble −2、Mid −1 |
 | 音に厚みがほしい | Low-Mid +2、Bass +1 | Bass +2、Mid +1 |
-| 小さい音量でも迫力がほしい | Bass +3、Treble +2 | Bass +3、Treble +2 |
+| 小さい音量でも迫力がほしい | Sub +2、Bass +2、Treble +2 | Bass +3、Treble +2 |
 
 目安はあくまで出発点です。当てはめたあとは、聴きながら好みに合わせて調整してください。
 
@@ -103,6 +103,8 @@ A simple knob-style equalizer for Windows, powered by Equalizer APO. → [Englis
 - **3 ノブモード**：Treble / Mid / Bass の 3 つだけを使います。
   3 つで全帯域を受け持つため、Bass と Treble はシェルフの傾きをゆるやかに（Q 0.5）、
   Mid は効く幅を広く（Q 0.7）しています。
+  6 ノブモードの Bass は 100 Hz を中心にした山の形で、それより低い帯域は Sub が受け持ちます。
+  3 ノブモードの Bass は、低音全体をまとめて持ち上げる棚の形（ローシェルフ）です。
 - つまみの値はモードごとに別々に保存されます。切り替えると、そのモードで前回設定した値に戻ります。
   一方のモードでつまみを回したり Reset したりしても、もう一方のモードの値は変わりません。
 
@@ -111,7 +113,7 @@ A simple knob-style equalizer for Windows, powered by Equalizer APO. → [Englis
 | つまみ | フィルター | 周波数 | 3 ノブモード |
 |---|---|---|---|
 | Sub | ピーキング (Q 1.0) | 40 Hz | 使わない |
-| Bass | ローシェルフ | 100 Hz | ○（Q 0.5） |
+| Bass | ピーキング (Q 1.0) | 100 Hz | ○（ローシェルフ Q 0.5） |
 | Low-Mid | ピーキング (Q 1.0) | 300 Hz | 使わない |
 | Mid | ピーキング (Q 1.0) | 1 kHz | ○（Q 0.7） |
 | High-Mid | ピーキング (Q 1.0) | 3 kHz | 使わない |
