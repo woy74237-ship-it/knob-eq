@@ -409,6 +409,11 @@ class MainForm : Form
 
     const int ContentTop = 45, GraphHeight = 130;
     const int Step = 105, KnobSize = 80;
+    const int Edge = 12, CellWidth = 216, Columns = 3; // 1 つのつまみ（つまみ + 名前と値）の幅。横レイアウトは 3 列
+
+    bool horizontal; // true: 横レイアウト（グラフの下につまみを 3 つずつ並べる）、false: 縦に 1 列
+    Button layoutBtn;
+    ToolTip tip;
 
     Label titleLabel;
     Label warnLabel;   // EQ が効かない状態のときに出す注意（グラフの上）
@@ -433,18 +438,19 @@ class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9f);
 
-        titleLabel = AddLabel("EQUALIZER", 18, 10, 130, 11f, FontStyle.Bold, ContentAlignment.MiddleLeft);
+        titleLabel = AddLabel("EQUALIZER", 18, 10, 110, 11f, FontStyle.Bold, ContentAlignment.MiddleLeft);
 
-        // 3 / 6 ノブの切り替えボタン（右上）
-        ToolTip tip = new ToolTip();
-        mode3Btn = AddButton("3", 166, 12, 28, 24);
-        mode6Btn = AddButton("6", 196, 12, 28, 24);
+        // 右上のボタン: 縦／横レイアウトの切り替えと、3 / 6 ノブの切り替え（位置は DoLayout で決める）
+        tip = new ToolTip();
+        layoutBtn = AddButton("", 0, 0, 28, 24);
+        layoutBtn.Click += delegate { SetHorizontal(!horizontal); };
+        mode3Btn = AddButton("3", 0, 0, 28, 24);
+        mode6Btn = AddButton("6", 0, 0, 28, 24);
         tip.SetToolTip(mode3Btn, "3 ノブ（Treble / Mid / Bass）");
         tip.SetToolTip(mode6Btn, "6 ノブ（全バンド）");
         mode3Btn.Click += delegate { SetMode(true); };
         mode6Btn.Click += delegate { SetMode(false); };
 
-        // 補正カーブのグラフ（見出しの下）
         // 注意バー（ふだんは隠しておく。クリックで直すための設定画面を開く）
         warnLabel = new Label();
         warnLabel.Visible = false;
@@ -454,8 +460,8 @@ class MainForm : Form
         warnLabel.Click += delegate { OpenFixSettings(); };
         Controls.Add(warnLabel);
 
+        // 補正カーブのグラフ（見出しの下。大きさは DoLayout で決める）
         graph = new ResponseGraph();
-        graph.Size = new Size(216, GraphHeight);
         graph.Bands = bands;
         graph.IsActive = IsActive;
         graph.Preamp = Preamp;
@@ -546,12 +552,13 @@ class MainForm : Form
         onBox.ForeColor = Theme.Label;
         warnLabel.BackColor = Theme.WarnBg;
         warnLabel.ForeColor = Theme.WarnText;
-        foreach (Button btn in new Button[] { mode3Btn, mode6Btn, reset })
+        foreach (Button btn in new Button[] { layoutBtn, mode3Btn, mode6Btn, reset })
         {
             btn.FlatAppearance.BorderColor = Theme.Ring;
             btn.FlatAppearance.MouseOverBackColor = Theme.Panel;
         }
         StyleModeButton(reset, false);
+        StyleModeButton(layoutBtn, false);
         StyleModeButton(mode3Btn, threeMode);
         StyleModeButton(mode6Btn, !threeMode);
         graph.Invalidate();
@@ -611,42 +618,77 @@ class MainForm : Form
         UpdateLabels();
     }
 
-    // 表示中のつまみを上から詰めて並べ、ウィンドウの高さを合わせる
+    void SetHorizontal(bool h)
+    {
+        if (h == horizontal) return;
+        horizontal = h;
+        DoLayout();
+        ScheduleSave();
+    }
+
+    // 部品を並べ、ウィンドウの大きさを合わせる
+    //   縦: グラフの下につまみを 1 列に並べる（上から高音 → 低音）
+    //   横: グラフの下につまみを 3 つずつ並べる（左上から低音 → 高音。グラフの横軸と同じ向き）
     void DoLayout()
     {
         SuspendLayout();
+        int cols = horizontal ? Columns : 1;
+        int contentW = cols * CellWidth;
+        int width = contentW + Edge * 2;
+
+        // 見出しの右側のボタン（右端にそろえる）
+        mode6Btn.Location = new Point(width - 44, 12);
+        mode3Btn.Location = new Point(width - 74, 12);
+        layoutBtn.Location = new Point(width - 110, 12);
+        layoutBtn.Text = horizontal ? "↕" : "↔";
+        tip.SetToolTip(layoutBtn, horizontal ? "縦レイアウトにする" : "横レイアウトにする");
+
         int top = ContentTop;
         if (warnShown)
         {
-            Size need = TextRenderer.MeasureText(warnLabel.Text, warnLabel.Font, new Size(216 - 12, 0), TextFormatFlags.WordBreak);
-            warnLabel.Bounds = new Rectangle(12, top, 216, need.Height + 8 + 4);
+            Size need = TextRenderer.MeasureText(warnLabel.Text, warnLabel.Font, new Size(contentW - 12, 0), TextFormatFlags.WordBreak);
+            warnLabel.Bounds = new Rectangle(Edge, top, contentW, need.Height + 8 + 4);
             top = warnLabel.Bottom + 8;
         }
-        graph.Location = new Point(12, top);
+        graph.Bounds = new Rectangle(Edge, top, contentW, GraphHeight);
         int knobTop = graph.Bottom + 15;
-        int row = 0;
-        foreach (Band b in bands)
+
+        int index = 0;
+        for (int i = 0; i < bands.Length; i++)
         {
+            Band b = bands[horizontal ? bands.Length - 1 - i : i];
             b.ActiveQ = threeMode && b.ThreeQ > 0 ? b.ThreeQ : b.Q;
             bool show = IsActive(b);
             b.Knob.Visible = b.NameLabel.Visible = b.ValueLabel.Visible = show;
             if (!show) continue;
-            int y = knobTop + row * Step;
-            b.Knob.Location = new Point(25, y);            // つまみは左
-            b.NameLabel.Location = new Point(120, y + 2);  // 名前と値は右
-            b.ValueLabel.Location = new Point(120, y + 28);
-            row++;
+            int x = Edge + (index % cols) * CellWidth, y = knobTop + (index / cols) * Step;
+            b.Knob.Location = new Point(x + 13, y);            // つまみは左
+            b.NameLabel.Location = new Point(x + 108, y + 2);  // 名前と値は右
+            b.ValueLabel.Location = new Point(x + 108, y + 28);
+            index++;
         }
-        int bottom = knobTop + row * Step;
+        int rows = (index + cols - 1) / cols;
+        int bottom = knobTop + rows * Step;
         onBox.Location = new Point(20, bottom + 12);
-        reset.Location = new Point(145, bottom + 7);
-        ClientSize = new Size(240, bottom + 50);
+        reset.Location = new Point(width - 95, bottom + 7);
+        ClientSize = new Size(width, bottom + 50);
+        KeepOnScreen();
 
         // 選択中のモードのボタンを塗りつぶして示す
         StyleModeButton(mode3Btn, threeMode);
         StyleModeButton(mode6Btn, !threeMode);
         graph.Invalidate();
         ResumeLayout();
+    }
+
+    // 大きさを変えた結果、画面からはみ出したら内側に戻す
+    void KeepOnScreen()
+    {
+        if (!IsHandleCreated) return;
+        Rectangle area = Screen.FromControl(this).WorkingArea;
+        int x = Math.Max(area.Left, Math.Min(Left, area.Right - Width));
+        int y = Math.Max(area.Top, Math.Min(Top, area.Bottom - Height));
+        if (x != Left || y != Top) Location = new Point(x, y);
     }
 
     void StyleModeButton(Button btn, bool selected)
@@ -712,7 +754,7 @@ class MainForm : Form
     }
 
     // 前回の値を knobeq.txt の先頭コメントから復元
-    //   書式: "# state: Treble=0.0 ... Sub=0.0 3:Treble=0.0 3:Mid=0.0 3:Bass=0.0 mode=6 on"
+    //   書式: "# state: Treble=0.0 ... Sub=0.0 3:Treble=0.0 3:Mid=0.0 3:Bass=0.0 mode=6 layout=v on"
     //   "3:" が付いたものが 3 ノブモードの値、付いていないものが 6 ノブモードの値
     void Load_()
     {
@@ -733,6 +775,7 @@ class MainForm : Form
                         int eq = kv.IndexOf('=');
                         if (eq < 0) continue;
                         if (kv.StartsWith("mode=")) { threeMode = kv == "mode=3"; continue; }
+                        if (kv.StartsWith("layout=")) { horizontal = kv == "layout=h"; continue; }
                         bool three = kv.StartsWith("3:");
                         string name = kv.Substring(three ? 2 : 0, eq - (three ? 2 : 0));
                         Band b = Find(name);
@@ -801,6 +844,7 @@ class MainForm : Form
         foreach (Band b in bands)
             if (b.InThree) state.Append(" 3:" + b.Name + "=" + Fmt(b.Value3));
         state.Append(threeMode ? " mode=3" : " mode=6");
+        state.Append(horizontal ? " layout=h" : " layout=v");
         state.Append(on ? " on" : " off");
 
         StringBuilder sb = new StringBuilder();
