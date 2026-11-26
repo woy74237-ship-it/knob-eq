@@ -16,6 +16,7 @@ A simple knob-style front end for Equalizer APO, the free system-wide equalizer 
 インストールは不要です。
 
 使い方の紹介記事: [イコライザ設定に疲れた方へ。目的から選べる無料の EQ アプリ「KnobEQ」を作りました（note）](https://note.com/quiet_raven5890/n/n99003c7af137)
+作り方の解説記事: [Equalizer APO を「つまみ」で操作する Windows アプリを作った（Zenn）](https://zenn.dev/walt_owen/articles/c442483d41bf54)
 
 初回起動時に「Windows によって PC が保護されました」と表示されたら、「詳細情報」→「実行」で起動できます（署名のない個人製アプリで表示される確認画面です）。
 
