@@ -1,9 +1,10 @@
 KnobEQ
 ======
 
-A simple knob-style equalizer for Windows. Turn a knob and the sound of your
-whole PC changes right away. KnobEQ works together with "Equalizer APO",
-a free audio tool for Windows.
+A simple, knob-style front end for "Equalizer APO", the free system-wide
+equalizer for Windows. Equalizer APO does the actual audio processing;
+KnobEQ controls it, so you can shape the sound of your whole PC just by
+turning a few knobs.
 
 The app follows your Windows display language (Japanese or English).
 

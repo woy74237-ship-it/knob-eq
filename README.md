@@ -1,10 +1,10 @@
 # KnobEQ
 
-つまみを回すだけで、Windows 全体の音を好みに調整できるイコライザです（3 ノブ / 6 ノブ）。
+Windows 全体の音を変えられる無料ソフト [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) を、つまみを回すだけで操作できるようにしたアプリです（3 ノブ / 6 ノブ）。
 「曇りを取りたい」「重低音の振動を感じたい」のような目的から選べる、チューニングガイド付き。
-[Equalizer APO](https://sourceforge.net/projects/equalizerapo/) の設定ファイルを書き換えることで動作します。
+音を実際に変えているのは Equalizer APO で、KnobEQ はその設定ファイルを書き換えて操作します。
 
-A simple knob-style equalizer for Windows, powered by Equalizer APO. → [English](#english)
+A simple knob-style front end for Equalizer APO, the free system-wide equalizer for Windows. → [English](#english)
 
 ![KnobEQ の画面](site/images/main.png)
 
@@ -167,8 +167,8 @@ Windows に標準で入っている C# コンパイラを使うので、追加�
 
 ## English
 
-KnobEQ is a simple knob-style equalizer for Windows. Turn a knob and the sound of your whole PC changes right away.
-It works on top of [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) by writing its configuration file.
+KnobEQ is a simple, knob-style front end for [Equalizer APO](https://sourceforge.net/projects/equalizerapo/), the free system-wide equalizer for Windows.
+Equalizer APO does the actual audio processing; KnobEQ controls it by writing its configuration file, so you can shape the sound of your whole PC just by turning a few knobs.
 The app follows your Windows display language (Japanese or English).
 
 ![KnobEQ](site/images/en/main.png)
