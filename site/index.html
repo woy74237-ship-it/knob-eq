@@ -168,7 +168,8 @@
   .faq details p { margin: 0 0 16px; color: var(--text-dim); }
 
   /* リンク・応援 */
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, 1fr); } }
   .card {
     display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
     padding: 20px 22px; text-decoration: none; color: var(--text); transition: transform .15s ease, box-shadow .15s ease;
@@ -380,8 +381,13 @@
   <section aria-labelledby="more-title">
     <div class="wrap">
       <h2 id="more-title">もっと知る</h2>
-      <p class="section-lead">ソースコードや、ほかのアプリはこちら。</p>
+      <p class="section-lead">紹介記事やソースコード、ほかのアプリはこちら。</p>
       <div class="cards">
+        <a class="card" href="https://note.com/quiet_raven5890/n/n99003c7af137">
+          <span class="kicker">note</span>
+          <span class="title">使い方の紹介</span>
+          <span class="desc">イコライザ設定に疲れた方へ。ガイドの使い方と、Peace との付き合い方。</span>
+        </a>
         <a class="card" href="https://github.com/woy74237-ship-it/knob-eq">
           <span class="kicker">GitHub</span>
           <span class="title">ソースコード</span>

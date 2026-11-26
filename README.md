@@ -15,6 +15,8 @@ A simple knob-style front end for Equalizer APO, the free system-wide equalizer 
 **[紹介ページ](https://woy74237-ship-it.github.io/knob-eq/)** または **[Releases](https://github.com/woy74237-ship-it/knob-eq/releases/latest)** から ZIP をダウンロードし、展開した `KnobEQ.exe` を起動します。
 インストールは不要です。
 
+使い方の紹介記事: [イコライザ設定に疲れた方へ。目的から選べる無料の EQ アプリ「KnobEQ」を作りました（note）](https://note.com/quiet_raven5890/n/n99003c7af137)
+
 初回起動時に「Windows によって PC が保護されました」と表示されたら、「詳細情報」→「実行」で起動できます（署名のない個人製アプリで表示される確認画面です）。
 
 ## 必要なもの
