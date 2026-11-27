@@ -1,0 +1,20 @@
+name: 要望・アイデア / Feature request
+description: 「こんな機能がほしい」「この目的も選べるようにしてほしい」/ Ideas and suggestions
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        アイデアをありがとうございます。日本語でも英語でも大丈夫です。
+        Thanks for the idea! Japanese or English is fine.
+  - type: textarea
+    id: idea
+    attributes:
+      label: どんなことをしたいですか / What would you like to do?
+      placeholder: 例：チューニングガイドに「ライブ感がほしい」を追加してほしい / e.g. Add "Live concert feel" to the tuning guide
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: どんな場面で使いますか / When would you use it?

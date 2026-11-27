@@ -1,0 +1,48 @@
+name: 不具合の報告 / Bug report
+description: うまく動かないときはこちら / Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご報告ありがとうございます。日本語でも英語でも大丈夫です。
+        Thanks for the report! Japanese or English is fine.
+
+        **先に確認 / Please check first:** KnobEQ の画面に注意が出ていれば、その案内に従うと直ることがあります。
+        If KnobEQ shows a notice (e.g. "Audio enhancements are turned off"), following it often fixes the issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きましたか / What happened?
+      placeholder: つまみを回しても音が変わらない / Turning the knobs doesn't change the sound
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現する手順 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: input
+    id: version
+    attributes:
+      label: KnobEQ のバージョン / KnobEQ version
+      placeholder: "1.0.0"
+  - type: input
+    id: windows
+    attributes:
+      label: Windows のバージョン / Windows version
+      placeholder: Windows 11 24H2
+  - type: input
+    id: device
+    attributes:
+      label: 出力デバイス / Output device
+      description: ヘッドホン、USB DAC、Bluetooth など / Headphones, USB DAC, Bluetooth, etc.
+  - type: textarea
+    id: config
+    attributes:
+      label: knobeq.txt の中身（任意） / Contents of knobeq.txt (optional)
+      description: C:\Program Files\EqualizerAPO\config\knobeq.txt
+      render: text

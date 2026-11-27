@@ -6,6 +6,8 @@ Windows 全体の音を変えられる無料ソフト [Equalizer APO](https://so
 
 A simple knob-style front end for Equalizer APO, the free system-wide equalizer for Windows. → [English](#english)
 
+**Download:** [latest release](https://github.com/woy74237-ship-it/knob-eq/releases/latest) · [website (English)](https://woy74237-ship-it.github.io/knob-eq/en/)
+
 ![KnobEQ の画面](site/images/main.png)
 
 画面は Windows の表示言語に合わせて、日本語または英語で表示されます。
@@ -174,7 +176,7 @@ KnobEQ is a simple, knob-style front end for [Equalizer APO](https://sourceforge
 Equalizer APO does the actual audio processing; KnobEQ controls it by writing its configuration file, so you can shape the sound of your whole PC just by turning a few knobs.
 The app follows your Windows display language (Japanese or English).
 
-![KnobEQ](site/images/en/main.png)
+![KnobEQ demo: pick a goal in the tuning guide, apply the suggestion, then fine-tune the knobs](site/images/en/demo.gif)
 
 ### Features
 
